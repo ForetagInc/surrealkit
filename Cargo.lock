@@ -3453,7 +3453,7 @@ dependencies = [
 
 [[package]]
 name = "surrealkit"
-version = "0.1.0"
+version = "0.1.6"
 dependencies = [
  "anyhow",
  "clap",
