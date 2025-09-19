@@ -1,0 +1,28 @@
+[package]
+name = 'surrealkit'
+version = '0.1.0'
+edition = '2024'
+
+[dependencies]
+anyhow = '1'
+clap = { version = '4.5.47', features = ['derive'] }
+hex = '0.4'
+serde = { version = '1.0.225', features = ['derive'] }
+serde_json = '1.0'
+rust_dotenv = '0.1.2'
+sha2 = '0.10'
+surrealdb = { version = '3.0.0-alpha.8', features = ['protocol-http', 'jwks'] }
+time = { version = '0.3', features = ['macros'] }
+tokio = { version = '1.47', features = ['macros', 'rt-multi-thread'] }
+walkdir = '2.5'
+
+[profile.dev.package]
+insta.opt-level = 3
+similar.opt-level = 3
+
+[profile.release]
+lto = true
+strip = true
+opt-level = 'z'
+panic = 'abort'
+codegen-units = 1
