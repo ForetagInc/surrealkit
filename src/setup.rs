@@ -7,7 +7,7 @@ use crate::{scaffold::DEFAULT_SETUP};
 pub async fn run_setup(db: &Surreal<Any>) -> Result<()> {
 	let setup_file = Path::new("database/setup.surql");
 
-	// Create a default setup file if it's missing (so `_migrations` exists).
+	// Create a default setup file if it's missing (so `_migration` exists).
 	if !setup_file.exists() {
 		if let Some(parent) = setup_file.parent() {
 			fs::create_dir_all(parent).context("creating setup file directory")?;

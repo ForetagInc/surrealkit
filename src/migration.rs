@@ -1,17 +1,49 @@
 use anyhow::{Result, Context};
-use std::{fs, path::{Path, PathBuf}};
+use std::{collections::BTreeMap, fs, path::{Path, PathBuf}};
 use sha2::{Sha256, Digest};
 use walkdir::WalkDir;
 use surrealdb::{Surreal, engine::any::Any};
+use surrealdb_types::{SurrealValue, Object, Value, Kind};
 
 use crate::{core::{display, exec_surql}, setup::run_setup};
+
+#[derive(serde::Deserialize, Debug)]
+pub struct Migration {
+	pub id: String,
+	pub file: String,
+	pub applied_at: String
+}
+
+impl SurrealValue for Migration {
+	fn kind_of() -> Kind {
+		Kind::Object
+	}
+
+	fn from_value(value: Value) -> Result<Self> {
+		let map = value.as_object().context("Expected Object")?;
+		let id = map.get("id").context("Missing ID")?.as_string().context("expected string")?.to_string();
+		let file = map.get("file").context("Missing File")?.as_string().context("expected string")?.to_string();
+		let applied_at = map.get("applied_at").context("Missing Applied At")?.as_string().context("expected string")?.to_string();
+
+		Ok(Self { id, file, applied_at })
+	}
+
+	fn into_value(self) -> Value {
+		let mut map = BTreeMap::new();
+		map.insert("id".to_string(), Value::String(self.id));
+		map.insert("file".to_string(), Value::String(self.file));
+		map.insert("applied_at".to_string(), Value::String(self.applied_at));
+
+		Value::Object(Object::from(map))
+	}
+}
 
 pub async fn migrate_all(
     db: &Surreal<Any>,
     fail_fast: bool,
     dry_run: bool,
 ) -> Result<()> {
-    // Ensure _migrations table exists
+    // Ensure _migration table exists
     run_setup(db).await?;
 
     // Collect all .surql files from migrations directory
@@ -62,7 +94,7 @@ pub async fn apply_migration_file(db: &Surreal<Any>, path: &Path) -> Result<bool
 	let hash = sha256_hex(sql.as_bytes());
 
 	// Already applied?
-	let mut resp = db.query("SELECT * FROM _migrations WHERE id = $id;")
+	let mut resp = db.query("SELECT * FROM _migration WHERE id = $id;")
 		.bind(("id", hash.clone()))
 		.await?;
 
@@ -76,7 +108,7 @@ pub async fn apply_migration_file(db: &Surreal<Any>, path: &Path) -> Result<bool
 
 	let file = path.to_string_lossy().into_owned();
 
-	db.query("CREATE _migrations CONTENT { id: $id, file: $file, applied_at: $ts };")
+	db.query("CREATE _migration CONTENT { id: $id, file: $file, applied_at: $ts };")
 		.bind(("id", hash))
 		.bind(("file", file))
 		.await?

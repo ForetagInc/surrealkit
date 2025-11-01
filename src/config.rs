@@ -41,7 +41,7 @@ pub async fn connect(cfg: &DbCfg) -> Result<Surreal<Any>> {
 	let db = create_surreal_client(&cfg.host).await
 		.with_context(|| format!("Failed connecting to {}", cfg.host))?;
 
-	db.signin(Root { username: &cfg.user, password: &cfg.pass }).await
+	db.signin(Root { username: cfg.user.to_string(), password: cfg.pass.to_string() }).await
 		.context("signin failed")?;
 	db.use_ns(&cfg.ns).use_db(&cfg.db).await
 		.with_context(|| format!("use_ns/use_db failed for ns={} db= {}", cfg.ns, cfg.db))?;

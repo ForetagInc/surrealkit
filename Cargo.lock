@@ -149,18 +149,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.99"
+version = "1.0.100"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b0674a1ddeecb70197781e945de4b3b8ffb61fa939a5597bcf48503737663100"
-
-[[package]]
-name = "approx"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f2a05fd1bd10b2527e20a2cd32d8873d115b8b39fe219ee25f42a8aca6ba278"
-dependencies = [
- "num-traits",
-]
+checksum = "a23eb6b1614318a8071c9b2521f36b424b2c83db5eb3a0fead4a6c0809af6e61"
 
 [[package]]
 name = "approx"
@@ -1223,7 +1214,7 @@ version = "0.7.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "75a4dcd69d35b2c87a7c83bce9af69fd65c9d68d3833a0ded568983928f3fc99"
 dependencies = [
- "approx 0.5.1",
+ "approx",
  "num-traits",
  "rstar",
  "serde",
@@ -1727,18 +1718,18 @@ checksum = "7943c866cc5cd64cbc25b2e01621d07fa8eb2a1a23160ee81ce38704e97b8ecf"
 
 [[package]]
 name = "itertools"
-version = "0.10.5"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b0fd2260e829bddf4cb6ea802289de2f86d6a7a690192fbe91b3f46e0f2c8473"
+checksum = "b1c173a5686ce8bfa551b3563d0c2170bf24ca44da99c7ca4bfdab5418c3fe57"
 dependencies = [
  "either",
 ]
 
 [[package]]
 name = "itertools"
-version = "0.11.0"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1c173a5686ce8bfa551b3563d0c2170bf24ca44da99c7ca4bfdab5418c3fe57"
+checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
 dependencies = [
  "either",
 ]
@@ -1812,9 +1803,9 @@ checksum = "f9fbbcab51052fe104eb5e5d351cf728d30a5be1fe14d9be8a3b097481fb97de"
 
 [[package]]
 name = "linfa-linalg"
-version = "0.1.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "56e7562b41c8876d3367897067013bb2884cc78e6893f092ecd26b305176ac82"
+checksum = "02a834c0ec063937688a0d13573aa515ab8c425bd8de3154b908dd3b9c197dc4"
 dependencies = [
  "ndarray",
  "num-traits",
@@ -1980,26 +1971,28 @@ dependencies = [
 
 [[package]]
 name = "ndarray"
-version = "0.15.6"
+version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "adb12d4e967ec485a5f71c6311fe28158e9d6f4bc4a447b474184d0f91a8fa32"
+checksum = "882ed72dce9365842bf196bdeedf5055305f11fc8c03dee7bb0194a6cad34841"
 dependencies = [
- "approx 0.4.0",
+ "approx",
  "matrixmultiply",
  "num-complex",
  "num-integer",
  "num-traits",
+ "portable-atomic",
+ "portable-atomic-util",
  "rawpointer",
 ]
 
 [[package]]
 name = "ndarray-stats"
-version = "0.5.1"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af5a8477ac96877b5bd1fd67e0c28736c12943aba24eda92b127e036b0c8f400"
+checksum = "17ebbe97acce52d06aebed4cd4a87c0941f4b2519b59b82b4feb5bd0ce003dfd"
 dependencies = [
- "indexmap 1.9.3",
- "itertools 0.10.5",
+ "indexmap 2.11.4",
+ "itertools 0.13.0",
  "ndarray",
  "noisy_float",
  "num-integer",
@@ -2319,6 +2312,21 @@ name = "pin-utils"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
+
+[[package]]
+name = "portable-atomic"
+version = "1.11.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f84267b20a16ea918e43c6a88433c2d54fa145c92a811b5b047ccbe153674483"
+
+[[package]]
+name = "portable-atomic-util"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d8a2f0d8d040d7848a709caf78912debcc3f33ee4b3cac47d73d1e1069e83507"
+dependencies = [
+ "portable-atomic",
+]
 
 [[package]]
 name = "potential_utf"
@@ -2679,6 +2687,7 @@ dependencies = [
  "bytes",
  "futures-core",
  "futures-util",
+ "h2",
  "http",
  "http-body",
  "http-body-util",
@@ -2713,9 +2722,9 @@ dependencies = [
 
 [[package]]
 name = "revision"
-version = "0.11.0"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "54b8ee532f15b2f0811eb1a50adf10d036e14a6cdae8d99893e7f3b921cb227d"
+checksum = "d9dcd5731a0eb50c0e4d183d5a0e1affc42139c05954f8bc57c386ca1df246ed"
 dependencies = [
  "chrono",
  "geo",
@@ -2728,9 +2737,9 @@ dependencies = [
 
 [[package]]
 name = "revision-derive"
-version = "0.11.0"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d3415e1bc838c36f9a0a2ac60c0fa0851c72297685e66592c44870d82834dfa2"
+checksum = "e5babe1bdb35dda70850e128e2932f3e3f99a2203ff2686ee0c2d17b1ab7ed10"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3008,15 +3017,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "serde-content"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3753ca04f350fa92d00b6146a3555e63c55388c9ef2e11e09bce2ff1c0b509c6"
-dependencies = [
- "serde",
-]
-
-[[package]]
 name = "serde_core"
 version = "1.0.225"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3183,9 +3183,9 @@ checksum = "d7beae5182595e9a8b683fa98c4317f956c9a2dec3b9716990d20023cc60c766"
 
 [[package]]
 name = "storekey"
-version = "0.8.1"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f66e6afe371dcd16739ae7f7ba020f7ca429ee650698e9a909ec728d6e08920e"
+checksum = "79f0a20b9cc597130e6b3ae22f2bc0892095c0def0361b4b86e64a609ef222ef"
 dependencies = [
  "storekey-derive",
  "uuid",
@@ -3193,9 +3193,9 @@ dependencies = [
 
 [[package]]
 name = "storekey-derive"
-version = "0.8.1"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e4d11b8e63d4d628a76a6435837d356287e5d999ebab0ab6e8e8c1173a3ff197"
+checksum = "4b17310dd353bab243079e8669927142cc4bde8e6b91bc966c65e347e78563a3"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3263,11 +3263,10 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "surrealdb"
-version = "3.0.0-alpha.8"
+version = "3.0.0-alpha.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e3e73f1242a5ea6714d39caaf6c40ecc0a741a3157a473a9a998391c1c079cb4"
+checksum = "4e9b0f345b4ab4c001aa0ac2b72a6bd63c40c0220566b0cae784aaadd1549dfd"
 dependencies = [
- "anyhow",
  "arrayvec",
  "async-channel",
  "bincode",
@@ -3289,9 +3288,9 @@ dependencies = [
  "rustls-pki-types",
  "semver",
  "serde",
- "serde-content",
  "serde_json",
  "surrealdb-core",
+ "surrealdb-types",
  "thiserror 1.0.69",
  "tokio",
  "tokio-tungstenite",
@@ -3307,9 +3306,9 @@ dependencies = [
 
 [[package]]
 name = "surrealdb-core"
-version = "3.0.0-alpha.8"
+version = "3.0.0-alpha.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab990ac32562b8a938b126b90a3b92053419e9754704d78c81f3701940b0f11d"
+checksum = "9c54dc015e16f91d596cbaeef65c2cf8a83ecef06fa2ca2959b5e187994cbb82"
 dependencies = [
  "addr",
  "ahash 0.8.12",
@@ -3340,6 +3339,7 @@ dependencies = [
  "getrandom 0.3.3",
  "hex",
  "http",
+ "humantime",
  "ipnet",
  "jsonwebtoken",
  "lexicmp",
@@ -3398,9 +3398,9 @@ dependencies = [
 
 [[package]]
 name = "surrealdb-protocol"
-version = "0.4.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8219a53e8a4948025993f9ecd29397dc643f87057b334d0dd134eb2623e4d8bf"
+checksum = "663f743d93821325a41f87fd400b773c7e6bb66359a5326cdff638d68d21a401"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3421,9 +3421,9 @@ dependencies = [
 
 [[package]]
 name = "surrealdb-types"
-version = "3.0.0-alpha.8"
+version = "3.0.0-alpha.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "edfa7dfac4a910e41071cdac8389e1ee92e86eeaccc8b3a8f205bd48ba9313f1"
+checksum = "706f530088b1a0eb36ee1964114d7cf3752710ff42c194ce901fc669a6212c2b"
 dependencies = [
  "anyhow",
  "bytes",
@@ -3431,20 +3431,25 @@ dependencies = [
  "flatbuffers",
  "geo",
  "hex",
+ "http",
+ "nanoid",
  "regex",
  "rstest",
  "rust_decimal",
  "serde",
+ "serde_json",
  "surrealdb-protocol",
  "surrealdb-types-derive",
+ "tracing",
+ "ulid",
  "uuid",
 ]
 
 [[package]]
 name = "surrealdb-types-derive"
-version = "3.0.0-alpha.8"
+version = "3.0.0-alpha.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e57e95393570354c9ac7f8166868bcc2d4c5b201a45a37cfb5d9072882a1ebc"
+checksum = "956ac3a9365b5f1e5277f38efd7efa068a93d6acf1ada5a7fb4a7a88cc53ec68"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3453,7 +3458,7 @@ dependencies = [
 
 [[package]]
 name = "surrealkit"
-version = "0.1.6"
+version = "0.1.7"
 dependencies = [
  "anyhow",
  "clap",
@@ -3463,6 +3468,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "surrealdb",
+ "surrealdb-types",
  "time",
  "tokio",
  "walkdir",
@@ -3697,9 +3703,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-tungstenite"
-version = "0.23.1"
+version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c6989540ced10490aaf14e6bad2e3d33728a2813310a0c71d1574304c49631cd"
+checksum = "d25a406cddcc431a75d3d9afc6a7c0f7428d4891dd973e4d54c56b46127bf857"
 dependencies = [
  "futures-util",
  "log",
@@ -3900,21 +3906,20 @@ checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
 
 [[package]]
 name = "tungstenite"
-version = "0.23.0"
+version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e2e2ce1e47ed2994fd43b04c8f618008d4cabdd5ee34027cf14f9d918edd9c8"
+checksum = "8628dcc84e5a09eb3d8423d6cb682965dea9133204e8fb3efee74c2a0c259442"
 dependencies = [
- "byteorder",
  "bytes",
  "data-encoding",
  "http",
  "httparse",
  "log",
- "rand 0.8.5",
+ "rand 0.9.2",
  "rustls",
  "rustls-pki-types",
  "sha1",
- "thiserror 1.0.69",
+ "thiserror 2.0.16",
  "url",
  "utf-8",
 ]
@@ -4010,9 +4015,9 @@ dependencies = [
 
 [[package]]
 name = "vart"
-version = "0.8.1"
+version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "87782b74f898179396e93c0efabb38de0d58d50bbd47eae00c71b3a1144dbbae"
+checksum = "b1982d899e57d646498709735f16e9224cf1e8680676ad687f930cf8b5b555ae"
 
 [[package]]
 name = "version_check"

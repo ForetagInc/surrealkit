@@ -16,7 +16,7 @@ pub fn scaffold() -> Result<()> {
 			.context("Writing seed.surql")?;
 	}
 
-	// setup.surql defines _migrations table/indexes
+	// setup.surql defines _migration table/indexes
 	let setup_path = database_dir.join("setup.surql");
 	if !setup_path.exists() {
 		fs::write(&setup_path, DEFAULT_SETUP)
@@ -28,23 +28,23 @@ pub fn scaffold() -> Result<()> {
 }
 
 pub const DEFAULT_SETUP: &str = r#"---
---- Migrations: Bootstrap _migrations table for tracking
+--- Migrations: Bootstrap _migration table for tracking
 ---
-DEFINE TABLE OVERWRITE _migrations SCHEMAFULL
+DEFINE TABLE OVERWRITE _migration SCHEMAFULL
 	PERMISSIONS NONE;
 
-DEFINE FIELD OVERWRITE file ON _migrations
+DEFINE FIELD OVERWRITE file ON _migration
 	TYPE string
 	COMMENT "Relative path to migration file";
 
-DEFINE FIELD OVERWRITE applied_at ON _migrations
+DEFINE FIELD OVERWRITE applied_at ON _migration
 	TYPE datetime
 	DEFAULT time::now();
 
 ---
 --- Indexes
 ---
-DEFINE INDEX OVERWRITE by_file ON _migrations
+DEFINE INDEX OVERWRITE by_file ON _migration
 	FIELDS file
 	COMMENT "Lookup by file name";
 "#;
