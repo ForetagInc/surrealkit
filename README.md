@@ -32,8 +32,8 @@ This creates a directory `/database` with the necessary scaffolding
 The following ENV variables will be picked up for your `.env` file, SurrealKit assumes you're using SurrealDB as a Web Database.
 
 - `PUBLIC_DATABASE_HOST`
+- `PUBLIC_DATABASE_NAME`
 - `PUBLIC_DATABASE_NAMESPACE`
-- `PUBLIC_DATABASE_DATABASE`
 - `DATABASE_USERNAME`
 - `DATABASE_PASSWORD`
 
