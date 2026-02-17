@@ -89,3 +89,133 @@ Seeding will automatically run when you apply migrations. If you would like to r
 ```sh
 surrealkit seed
 ```
+
+## Testing Framework
+
+```sh
+surrealkit test
+```
+
+The runner executes declarative TOML suites from `database/tests/suites/*.toml` and supports:
+
+- SQL assertion tests (`sql_expect`)
+- Permission rule matrices (`permissions_matrix`)
+- Schema metadata assertions (`schema_metadata`)
+- Schema behavior assertions (`schema_behavior`)
+- HTTP API endpoint assertions (`api_request`)
+
+By default, each suite runs in an isolated ephemeral namespace/database and fails CI on any test failure.
+
+### CLI Flags
+
+`surrealkit test` supports:
+
+- `--suite <glob>`
+- `--case <glob>`
+- `--tag <tag>` (repeatable)
+- `--fail-fast`
+- `--parallel <N>`
+- `--json-out <path>`
+- `--no-setup`
+- `--no-sync`
+- `--no-seed`
+- `--base-url <url>`
+- `--timeout-ms <ms>`
+- `--keep-db`
+
+### Global Config
+
+Global test settings live in `database/tests/config.toml`.
+
+Example:
+
+```toml
+[defaults]
+timeout_ms = 10000
+base_url = "http://localhost:8000"
+
+[actors.root]
+kind = "root"
+```
+
+Optional env fallbacks:
+
+- `SURREALKIT_TEST_BASE_URL`
+- `SURREALKIT_TEST_TIMEOUT_MS`
+- `PUBLIC_DATABASE_HOST` (used as API base URL fallback when test-specific base URL is not set)
+
+### Example Suite
+
+```toml
+name = "security_smoke"
+tags = ["smoke", "security"]
+
+[[cases]]
+name = "guest_cannot_create_order"
+kind = "sql_expect"
+actor = "guest"
+sql = "CREATE order CONTENT { total: 10 };"
+allow = false
+error_contains = "permission"
+
+[[cases]]
+name = "orders_api_returns_200"
+kind = "api_request"
+actor = "root"
+method = "GET"
+path = "/api/orders"
+expected_status = 200
+
+[[cases.body_assertions]]
+path = "0.id"
+exists = true
+```
+
+### Actor Example (Namespace / Database / Record / Token / Headers)
+
+```toml
+[actors.reader]
+kind = "database"
+namespace = "app"
+database = "main"
+username_env = "TEST_DB_READER_USER"
+password_env = "TEST_DB_READER_PASS"
+
+[actors.jwt_actor]
+kind = "token"
+token_env = "TEST_API_JWT"
+
+[actors.custom_client]
+kind = "headers"
+headers = { "x-tenant-id" = "tenant_a" }
+```
+
+### Permission Matrix Example
+
+```toml
+[[cases]]
+name = "reader_permissions"
+kind = "permissions_matrix"
+actor = "reader"
+table = "order"
+record_id = "perm_test"
+
+[[cases.rules]]
+action = "select"
+allow = true
+
+[[cases.rules]]
+action = "update"
+allow = false
+error_contains = "permission"
+```
+
+### JSON Reports for CI
+
+Generate machine-readable output:
+
+```sh
+surrealkit test --json-out database/tests/report.json
+```
+
+The command exits non-zero if any case fails.

@@ -1,7 +1,7 @@
 [package]
 name = 'surrealkit'
 description = 'Manage migrations, seeding and tests for your SurrealDB via CLI'
-version = '0.3.1'
+version = '0.3.2'
 edition = '2024'
 authors = ['Chiru Boggavarapu <chiru@foretag.co>']
 repository = 'https://github.com/ForetagInc/surrealkit'
@@ -14,6 +14,7 @@ clap = { version = '4.5.47', features = ['derive'] }
 hex = '0.4'
 serde = { version = '1.0.225', features = ['derive'] }
 serde_json = '1.0'
+toml = '0.8'
 rust_dotenv = '0.1.2'
 sha2 = '0.10'
 surrealdb = { version = '3.0.0-beta.4', features = ['protocol-http', 'jwks'] }
@@ -21,6 +22,8 @@ surrealdb-types = { version = '3.0.0-beta.4' }
 time = { version = '0.3', features = ['macros', 'formatting'] }
 tokio = { version = '1.47', features = ['macros', 'rt-multi-thread', 'signal', 'time'] }
 walkdir = '2.5'
+reqwest = { version = '0.12', default-features = false, features = ['json', 'rustls-tls'] }
+regex = '1'
 
 [profile.dev.package]
 similar.opt-level = 3

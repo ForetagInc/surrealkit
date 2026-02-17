@@ -14,6 +14,7 @@ mod seed;
 mod setup;
 mod status;
 mod sync;
+mod tester;
 
 use commit::CommitOpts;
 use config::{DbCfg, connect};
@@ -21,6 +22,7 @@ use migration::{apply_one, migrate_all};
 use setup::run_setup;
 use status::status;
 use sync::SyncOpts;
+use tester::{TestOpts, run_test};
 
 #[derive(Parser, Debug)]
 #[command(version, about = "SurrealKit CLI")]
@@ -72,6 +74,32 @@ enum Commands {
 		path: PathBuf,
 		#[arg(long)]
 		track: bool,
+	},
+	Test {
+		#[arg(long)]
+		suite: Option<String>,
+		#[arg(long)]
+		case: Option<String>,
+		#[arg(long)]
+		tag: Vec<String>,
+		#[arg(long)]
+		fail_fast: bool,
+		#[arg(long, default_value_t = 1)]
+		parallel: usize,
+		#[arg(long)]
+		json_out: Option<PathBuf>,
+		#[arg(long)]
+		no_setup: bool,
+		#[arg(long)]
+		no_sync: bool,
+		#[arg(long)]
+		no_seed: bool,
+		#[arg(long)]
+		base_url: Option<String>,
+		#[arg(long)]
+		timeout_ms: Option<u64>,
+		#[arg(long)]
+		keep_db: bool,
 	},
 }
 
@@ -141,6 +169,36 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 		Commands::Apply { path, track } => {
 			let db = connect_from_env(&env).await?;
 			apply_one(&db, &path, track).await?;
+		}
+		Commands::Test {
+			suite,
+			case,
+			tag,
+			fail_fast,
+			parallel,
+			json_out,
+			no_setup,
+			no_sync,
+			no_seed,
+			base_url,
+			timeout_ms,
+			keep_db,
+		} => {
+			run_test(TestOpts {
+				suite,
+				case,
+				tags: tag,
+				fail_fast,
+				parallel,
+				json_out,
+				no_setup,
+				no_sync,
+				no_seed,
+				base_url,
+				timeout_ms,
+				keep_db,
+			})
+			.await?;
 		}
 	}
 

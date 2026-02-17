@@ -46,6 +46,26 @@ impl DbCfg {
 			pass,
 		})
 	}
+
+	pub fn host(&self) -> &str {
+		&self.host
+	}
+
+	pub fn ns(&self) -> &str {
+		&self.ns
+	}
+
+	pub fn db(&self) -> &str {
+		&self.db
+	}
+
+	pub fn user(&self) -> &str {
+		&self.user
+	}
+
+	pub fn pass(&self) -> &str {
+		&self.pass
+	}
 }
 
 pub async fn connect(cfg: &DbCfg) -> Result<Surreal<Any>> {

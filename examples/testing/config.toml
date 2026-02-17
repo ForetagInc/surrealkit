@@ -1,0 +1,17 @@
+[defaults]
+timeout_ms = 12000
+
+# Root fixture initializes schema, access method, function, api and graph tables.
+[[fixtures]]
+name = "domain_bootstrap"
+actor = "root"
+file = "fixtures/root_and_access_setup.surql"
+
+[actors.root]
+kind = "root"
+
+# Record access actor authenticated through DEFINE ACCESS app_access.
+[actors.access_user]
+kind = "record"
+access = "app_access"
+params = { email = "viewer@example.com", password = "viewer-password" }
