@@ -92,6 +92,8 @@ surrealkit seed
 
 ## Testing Framework
 
+[Testing Example](https://github.com/ForetagInc/surrealkit/blob/main/examples/testing/README.md)
+
 ```sh
 surrealkit test
 ```
