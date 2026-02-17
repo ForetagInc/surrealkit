@@ -1,8 +1,8 @@
-use std::{path::Path, fs};
-use anyhow::{anyhow, Result};
-use surrealdb::{ Surreal, engine::any::Any };
+use anyhow::{Result, anyhow};
+use std::{fs, path::Path};
+use surrealdb::{Surreal, engine::any::Any};
 
-use crate::core::{exec_surql, display};
+use crate::core::{display, exec_surql};
 
 pub async fn seed(db: &Surreal<Any>) -> Result<()> {
 	let path = Path::new("database/seed.surql");

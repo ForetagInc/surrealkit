@@ -186,6 +186,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-stream"
+version = "0.3.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b5a71a6f37880a80d1d7f19efd781e4b5de42c88f0722cc13bcb6cc2cfe8476"
+dependencies = [
+ "async-stream-impl",
+ "futures-core",
+ "pin-project-lite",
+]
+
+[[package]]
+name = "async-stream-impl"
+version = "0.3.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c7c24de15d275a1ecfd47a380fb4d5ec9bfe0933f309ed5e705b775596a3574d"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.106",
+]
+
+[[package]]
 name = "async-trait"
 version = "0.1.89"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -947,6 +969,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 
 [[package]]
+name = "errno"
+version = "0.3.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
+dependencies = [
+ "libc",
+ "windows-sys 0.52.0",
+]
+
+[[package]]
 name = "event-listener"
 version = "5.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1230,6 +1262,7 @@ version = "0.32.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f3901269ec6d4f6068d3f09e5f02f995bd076398dcd1dfec407cd230b02d11b"
 dependencies = [
+ "earcutr",
  "float_next_after",
  "geo-types",
  "geographiclib-rs",
@@ -1241,6 +1274,7 @@ dependencies = [
  "rstar 0.12.2",
  "serde",
  "sif-itree",
+ "spade",
 ]
 
 [[package]]
@@ -2098,15 +2132,6 @@ dependencies = [
  "libc",
  "wasi",
  "windows-sys 0.59.0",
-]
-
-[[package]]
-name = "nanoid"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3ffa00dec017b5b1a8b7cf5e2c008bfda1aa7e0697ac1508b491fdf2622fb4d8"
-dependencies = [
- "rand 0.8.5",
 ]
 
 [[package]]
@@ -3526,6 +3551,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "142099cd6db3c4fab61e5133c62ff80b26674391e195860791fda0b1be3e5080"
 
 [[package]]
+name = "signal-hook-registry"
+version = "1.4.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c4db69cba1110affc0e9f7bcd48bbf87b3f4fc7c61fc9155afd4c469eb3d6c1b"
+dependencies = [
+ "errno",
+ "libc",
+]
+
+[[package]]
 name = "signature"
 version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3679,10 +3714,11 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "surrealdb"
-version = "3.0.0-beta.3"
+version = "3.0.0-rc.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "00646c54b068a2f7f5a4a42e6cf146cd4ffbd543f5a1481699cc6e03f0e9697b"
+checksum = "1201e1b7dd35ee4c071cbada066bf6292027eb09f995e5a20943be171a242e6e"
 dependencies = [
+ "anyhow",
  "async-channel",
  "boxcar",
  "chrono",
@@ -3700,7 +3736,6 @@ dependencies = [
  "serde_json",
  "surrealdb-core",
  "surrealdb-types",
- "thiserror 2.0.18",
  "tokio",
  "tokio-tungstenite",
  "tokio-tungstenite-wasm",
@@ -3716,9 +3751,9 @@ dependencies = [
 
 [[package]]
 name = "surrealdb-core"
-version = "3.0.0-beta.3"
+version = "3.0.0-rc.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4cc06730ac364149d7e6bb8ec54e073066cff40f81d2e636a5aaf016bd0550ab"
+checksum = "4443f641428d70ec30cf56a2cb5f88173a7e2084c8e33b31f33b1ab7b23080bd"
 dependencies = [
  "addr",
  "ahash 0.8.12",
@@ -3726,6 +3761,7 @@ dependencies = [
  "anyhow",
  "argon2",
  "async-channel",
+ "async-stream",
  "async-trait",
  "base64",
  "bcrypt",
@@ -3752,7 +3788,6 @@ dependencies = [
  "lexicmp",
  "md-5",
  "mime",
- "nanoid",
  "ndarray",
  "ndarray-stats",
  "num-traits",
@@ -3813,7 +3848,7 @@ dependencies = [
  "chrono",
  "flatbuffers",
  "futures",
- "geo 0.31.0",
+ "geo 0.32.0",
  "prost",
  "prost-types",
  "rust_decimal",
@@ -3827,9 +3862,9 @@ dependencies = [
 
 [[package]]
 name = "surrealdb-types"
-version = "3.0.0-beta.3"
+version = "3.0.0-rc.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5fee52911b24591b6c3f04cfdd7ba70f9673c1d9acd92b9c71f593b341fbf6a2"
+checksum = "3365865a2c4b011d46852518e0b9ec35185c4e2f649fffd66d985ea39955c02e"
 dependencies = [
  "anyhow",
  "bytes",
@@ -3838,8 +3873,8 @@ dependencies = [
  "geo 0.32.0",
  "hex",
  "http",
- "nanoid",
  "papaya",
+ "rand 0.8.5",
  "regex",
  "rstest",
  "rust_decimal",
@@ -3853,9 +3888,9 @@ dependencies = [
 
 [[package]]
 name = "surrealdb-types-derive"
-version = "3.0.0-beta.3"
+version = "3.0.0-rc.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d24734ceb1516bcbe3bb3368477f21be3f22553835b08d748cf167ba39b8dae"
+checksum = "06c9be7156bc033e6355d92918bf5f77b704f42b08270e4e4f40062135a0a7fa"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3864,7 +3899,7 @@ dependencies = [
 
 [[package]]
 name = "surrealkit"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -4067,6 +4102,7 @@ dependencies = [
  "libc",
  "mio",
  "pin-project-lite",
+ "signal-hook-registry",
  "socket2",
  "tokio-macros",
  "windows-sys 0.61.0",

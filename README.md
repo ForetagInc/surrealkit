@@ -39,6 +39,47 @@ The following ENV variables will be picked up for your `.env` file, SurrealKit a
 
 A table (`_migration`) is generated and managed by SurrealKit on your configured database.
 
+## Team Workflow
+
+SurrealKit now separates schema authoring, dev sync, and deploy migrations:
+
+1. Edit desired state in `database/schema/*.surql`
+2. Reconcile dev DB with auto-prune:
+
+```sh
+surrealkit sync
+```
+
+3. Watch mode for local development:
+
+```sh
+surrealkit sync --watch
+```
+
+4. Generate a git-reviewed migration diff and update snapshots:
+
+```sh
+surrealkit commit --name add_customer_indexes
+```
+
+Generated migrations are written to `database/migrations/*.surql`.
+Snapshots are tracked in:
+
+- `database/.surrealkit/schema_snapshot.json`
+- `database/.surrealkit/catalog_snapshot.json`
+
+To guard CI against missing migration/snapshot updates:
+
+```sh
+surrealkit commit --dry-run
+```
+
+If prune is enabled against a shared DB, SurrealKit requires explicit override:
+
+```sh
+surrealkit sync --allow-shared-prune
+```
+
 ### Seeding
 
 Seeding will automatically run when you apply migrations. If you would like to reapply migrations, please re-apply your migrations.
