@@ -28,9 +28,9 @@ pub async fn run_sync(db: &Surreal<Any>, opts: SyncOpts) -> Result<()> {
 	ensure_local_state_dirs()?;
 
 	if opts.watch {
-		run_sync_once(db, &opts).await?;
+		run_sync_once(db, &opts, true).await?;
 		println!(
-			"Watching schema changes every {}ms (Ctrl+C to stop)...",
+			"Watch mode active ({}ms interval). Waiting for schema changes... (Ctrl+C to stop)",
 			opts.debounce_ms.max(250)
 		);
 		loop {
@@ -40,7 +40,7 @@ pub async fn run_sync(db: &Surreal<Any>, opts: SyncOpts) -> Result<()> {
 					break;
 				}
 				_ = tokio::time::sleep(Duration::from_millis(opts.debounce_ms.max(250))) => {
-					if let Err(err) = run_sync_once(db, &opts).await {
+					if let Err(err) = run_sync_once(db, &opts, true).await {
 						if opts.fail_fast {
 							return Err(err);
 						}
@@ -51,20 +51,21 @@ pub async fn run_sync(db: &Surreal<Any>, opts: SyncOpts) -> Result<()> {
 		}
 		Ok(())
 	} else {
-		run_sync_once(db, &opts).await
+		run_sync_once(db, &opts, false).await
 	}
 }
 
-async fn run_sync_once(db: &Surreal<Any>, opts: &SyncOpts) -> Result<()> {
+async fn run_sync_once(db: &Surreal<Any>, opts: &SyncOpts, watch_mode: bool) -> Result<()> {
 	let files = collect_schema_files()?;
 	let tracked = load_sync_hashes(db).await?;
 
-	if files.is_empty() {
+	if files.is_empty() && !watch_mode {
 		println!("No schema files found in database/schema");
 	}
 
 	let mut changed_count = 0usize;
 	let mut apply_errors = 0usize;
+	let mut pruned_count = 0usize;
 	for file in &files {
 		let tracked_hash = tracked.get(&file.path);
 		if tracked_hash == Some(&file.hash) {
@@ -73,13 +74,17 @@ async fn run_sync_once(db: &Surreal<Any>, opts: &SyncOpts) -> Result<()> {
 
 		changed_count += 1;
 		if opts.dry_run {
-			println!("DRY RUN: would apply {}", file.path);
+			if !watch_mode {
+				println!("DRY RUN: would apply {}", file.path);
+			}
 			continue;
 		}
 
 		match exec_surql(db, &file.sql).await {
 			Ok(_) => {
-				println!("applied {}", file.path);
+				if !watch_mode {
+					println!("applied {}", file.path);
+				}
 				store_sync_hash(db, &file.path, &file.hash).await?;
 			}
 			Err(err) => {
@@ -106,13 +111,18 @@ async fn run_sync_once(db: &Surreal<Any>, opts: &SyncOpts) -> Result<()> {
 		let remove_sql = render_remove_sql(&stale_entities, true)?;
 		let sql = remove_sql.join("\n");
 		if opts.dry_run {
-			println!("DRY RUN: would prune {} stale entities", remove_sql.len());
-			for stmt in remove_sql {
-				println!("  {}", stmt);
+			if !watch_mode {
+				println!("DRY RUN: would prune {} stale entities", remove_sql.len());
+				for stmt in remove_sql {
+					println!("  {}", stmt);
+				}
 			}
 		} else {
 			exec_surql(db, &sql).await?;
-			println!("pruned {} stale entities", stale_count);
+			pruned_count = stale_count;
+			if !watch_mode {
+				println!("pruned {} stale entities", stale_count);
+			}
 		}
 	}
 
@@ -121,9 +131,25 @@ async fn run_sync_once(db: &Surreal<Any>, opts: &SyncOpts) -> Result<()> {
 		store_last_sync_meta(db).await?;
 	}
 
-	if changed_count == 0 {
+	if watch_mode {
+		let has_changes = changed_count > 0 || stale_count > 0;
+		if has_changes {
+			if opts.dry_run {
+				println!(
+					"Change detected (dry-run): {} schema file(s), {} stale entity(ies) would be pushed.",
+					changed_count, stale_count
+				);
+			} else {
+				println!(
+					"Change detected and pushed: {} schema file(s) synced, {} stale entity(ies) pruned.",
+					changed_count, pruned_count
+				);
+			}
+		}
+	} else if changed_count == 0 {
 		println!("schema already in sync");
 	}
+
 	if apply_errors > 0 {
 		eprintln!("sync completed with {} apply error(s)", apply_errors);
 	}

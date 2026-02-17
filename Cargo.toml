@@ -1,7 +1,7 @@
 [package]
 name = 'surrealkit'
 description = 'Manage migrations, seeding and tests for your SurrealDB via CLI'
-version = '0.3.0'
+version = '0.3.1'
 edition = '2024'
 authors = ['Chiru Boggavarapu <chiru@foretag.co>']
 repository = 'https://github.com/ForetagInc/surrealkit'

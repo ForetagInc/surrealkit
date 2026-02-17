@@ -21,6 +21,8 @@ Install via Cargo:
 cargo install surrealkit
 ```
 
+Or download a prebuilt binary from [GitHub Releases](https://github.com/ForetagInc/surrealkit/releases) (Linux, macOS Intel/Apple Silicon, Windows).
+
 Initialise a new project:
 
 ```sh
