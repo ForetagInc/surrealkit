@@ -7,7 +7,6 @@ use surrealdb::{Surreal, engine::any::Any};
 mod commit;
 mod config;
 mod core;
-mod db_capabilities;
 mod migration;
 mod scaffold;
 mod schema_state;
@@ -124,15 +123,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 			dry_run,
 			allow_empty,
 		} => {
-			let db = connect_from_env(&env).await?;
-			commit::run_commit(
-				&db,
-				CommitOpts {
-					name,
-					dry_run,
-					allow_empty,
-				},
-			)
+			commit::run_commit(CommitOpts {
+				name,
+				dry_run,
+				allow_empty,
+			})
 			.await?;
 		}
 		Commands::Seed => {

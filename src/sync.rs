@@ -7,7 +7,6 @@ use surrealdb::{Surreal, engine::any::Any};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
 use crate::core::exec_surql;
-use crate::db_capabilities::supports_remove_api;
 use crate::schema_state::{
 	build_catalog_snapshot, collect_schema_files, ensure_local_state_dirs, load_catalog_snapshot,
 	removed_entities, render_remove_sql,
@@ -104,12 +103,7 @@ async fn run_sync_once(db: &Surreal<Any>, opts: &SyncOpts) -> Result<()> {
 			bail!("database is marked shared; refusing stale prune without --allow-shared-prune");
 		}
 
-		let api_supported = if stale_entities.iter().any(|e| e.kind == "api") {
-			supports_remove_api(db).await?
-		} else {
-			true
-		};
-		let remove_sql = render_remove_sql(&stale_entities, api_supported)?;
+		let remove_sql = render_remove_sql(&stale_entities, true)?;
 		let sql = remove_sql.join("\n");
 		if opts.dry_run {
 			println!("DRY RUN: would prune {} stale entities", remove_sql.len());

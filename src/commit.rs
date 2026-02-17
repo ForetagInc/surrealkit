@@ -3,10 +3,8 @@ use std::fs;
 use std::process::Command;
 
 use anyhow::{Result, bail};
-use surrealdb::{Surreal, engine::any::Any};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339, macros::format_description};
 
-use crate::db_capabilities::supports_remove_api;
 use crate::schema_state::{
 	FileDiff, MIGRATIONS_DIR, SchemaFile, build_catalog_snapshot, collect_schema_files,
 	diff_schema, ensure_local_state_dirs, load_catalog_snapshot, load_schema_snapshot,
@@ -21,7 +19,7 @@ pub struct CommitOpts {
 	pub allow_empty: bool,
 }
 
-pub async fn run_commit(db: &Surreal<Any>, opts: CommitOpts) -> Result<()> {
+pub async fn run_commit(opts: CommitOpts) -> Result<()> {
 	ensure_local_state_dirs()?;
 	warn_branch_staleness();
 
@@ -41,12 +39,7 @@ Create an explicit manual migration for destructive changes."
 		);
 	}
 
-	let api_supported = if removed.iter().any(|e| e.kind == "api") {
-		supports_remove_api(db).await?
-	} else {
-		true
-	};
-	let remove_sql = render_remove_sql(&removed, api_supported)?;
+	let remove_sql = render_remove_sql(&removed, true)?;
 
 	let changed_files = changed_files(&files, &file_diff);
 	let has_changes = !changed_files.is_empty() || !remove_sql.is_empty();
