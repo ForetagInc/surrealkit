@@ -173,6 +173,21 @@ path = "0.id"
 exists = true
 ```
 
+To compare a returned field against the authenticated actor, use `equals_auth` with `$auth` or `$auth.<property>`:
+
+```toml
+[[cases]]
+name = "user_can_create_calendar"
+kind = "sql_expect"
+actor = "user_alice"
+sql = "CREATE calendar CONTENT { name: 'Alice Personal' };"
+allow = true
+
+[[cases.assertions]]
+path = "0.owner"
+equals_auth = "$auth.id"
+```
+
 ### Actor Example (Namespace / Database / Record / Token / Headers)
 
 ```toml

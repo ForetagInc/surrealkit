@@ -36,5 +36,6 @@ surrealkit test --suite '*root_access_full_stack*' --json-out database/tests/rep
 
 - The suite uses a `record` access actor (`kind = "record"`) with `access = "app_access"`.
 - `access_user` is created by the runner with `signup_params`, then authenticated with `signin_params`, so the test setup exercises the access method instead of relying on a pre-created fixture account.
+- JSON assertions can compare a returned field to the authenticated actor with `equals_auth = "$auth.id"` or another `$auth.<property>` reference.
 - API paths (`/api/v1/health`, `/api/v1/profile`) are placeholders. Update them to match your API routes.
 - The runner uses ephemeral namespace/database isolation by default.

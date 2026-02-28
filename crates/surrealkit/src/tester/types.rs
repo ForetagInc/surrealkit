@@ -95,7 +95,6 @@ pub enum ActorKind {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct CaseSpec {
 	pub name: String,
 	#[serde(default)]
@@ -220,6 +219,7 @@ pub struct JsonAssertionSpec {
 	pub path: String,
 	pub exists: Option<bool>,
 	pub equals: Option<serde_json::Value>,
+	pub equals_auth: Option<String>,
 	pub contains: Option<String>,
 	pub regex: Option<String>,
 }
@@ -302,4 +302,29 @@ pub fn default_true() -> bool {
 
 fn default_get() -> String {
 	"GET".to_string()
+}
+
+#[cfg(test)]
+mod tests {
+	use super::{CaseKind, SuiteSpec};
+
+	#[test]
+	fn parses_case_kind_inside_cases_array() {
+		let raw = r#"
+name = "calendar"
+tags = ["security"]
+
+[[cases]]
+name = "guest_cannot_create_file"
+kind = "sql_expect"
+actor = "guest"
+sql = "CREATE calendar CONTENT { name: 'x' };"
+allow = false
+error_contains = "permission"
+"#;
+
+		let suite: SuiteSpec = toml::from_str(raw).expect("suite should parse");
+		assert_eq!(suite.cases.len(), 1);
+		assert!(matches!(suite.cases[0].kind, CaseKind::SqlExpect(_)));
+	}
 }

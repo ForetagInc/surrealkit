@@ -4,10 +4,16 @@ use serde_json::Value;
 
 use super::types::{AssertionReport, HeaderAssertionSpec, JsonAssertionSpec};
 
-pub fn assert_json_value(
+#[derive(Debug, Clone, Default)]
+pub struct JsonAssertionContext {
+	pub actor_auth: Option<Value>,
+}
+
+pub fn assert_json_value_with_context(
 	actual: &Value,
 	assertion: &JsonAssertionSpec,
 	index: usize,
+	ctx: &JsonAssertionContext,
 ) -> Result<AssertionReport> {
 	let label = format!("json_assertion_{}", index + 1);
 	let found = lookup_path(actual, &assertion.path);
@@ -44,6 +50,33 @@ pub fn assert_json_value(
 				message: format!(
 					"path '{}' expected {:?}, got {:?}",
 					assertion.path, expected, value
+				),
+			});
+		}
+	}
+
+	if let Some(auth_ref) = &assertion.equals_auth {
+		let Some(auth) = ctx.actor_auth.as_ref() else {
+			return Ok(AssertionReport {
+				name: label,
+				passed: false,
+				message: "actor auth is unavailable for this assertion".to_string(),
+			});
+		};
+		let Some(expected) = lookup_auth_value(auth, auth_ref) else {
+			return Ok(AssertionReport {
+				name: label,
+				passed: false,
+				message: format!("auth reference '{}' could not be resolved", auth_ref),
+			});
+		};
+		if value != expected {
+			return Ok(AssertionReport {
+				name: label,
+				passed: false,
+				message: format!(
+					"path '{}' expected auth reference '{}' = {:?}, got {:?}",
+					assertion.path, auth_ref, expected, value
 				),
 			});
 		}
@@ -213,6 +246,14 @@ pub fn lookup_path<'a>(value: &'a Value, path: &str) -> Option<&'a Value> {
 	Some(cursor)
 }
 
+fn lookup_auth_value<'a>(auth: &'a Value, auth_ref: &str) -> Option<&'a Value> {
+	if auth_ref == "$auth" {
+		return Some(auth);
+	}
+	let path = auth_ref.strip_prefix("$auth.")?;
+	lookup_path(auth, path)
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -229,5 +270,53 @@ mod tests {
 		});
 		let got = lookup_path(&value, "a.b.1.c").expect("path should exist");
 		assert_eq!(got, &serde_json::json!(2));
+	}
+
+	#[test]
+	fn assertion_can_compare_against_auth_reference() {
+		let actual = serde_json::json!({
+			"owner": "user:alice"
+		});
+		let assertion = JsonAssertionSpec {
+			path: "owner".to_string(),
+			exists: None,
+			equals: None,
+			equals_auth: Some("$auth.id".to_string()),
+			contains: None,
+			regex: None,
+		};
+		let ctx = JsonAssertionContext {
+			actor_auth: Some(serde_json::json!({
+				"id": "user:alice",
+				"email": "alice@example.com"
+			})),
+		};
+
+		let report =
+			assert_json_value_with_context(&actual, &assertion, 0, &ctx).expect("assertion ok");
+		assert!(report.passed, "{}", report.message);
+	}
+
+	#[test]
+	fn assertion_can_compare_against_entire_auth_object() {
+		let actual = serde_json::json!({
+			"id": "user:alice",
+			"email": "alice@example.com"
+		});
+		let assertion = JsonAssertionSpec {
+			path: "".to_string(),
+			exists: None,
+			equals: None,
+			equals_auth: Some("$auth".to_string()),
+			contains: None,
+			regex: None,
+		};
+		let ctx = JsonAssertionContext {
+			actor_auth: Some(actual.clone()),
+		};
+
+		let report =
+			assert_json_value_with_context(&actual, &assertion, 0, &ctx).expect("assertion ok");
+		assert!(report.passed, "{}", report.message);
 	}
 }

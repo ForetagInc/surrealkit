@@ -1,11 +1,13 @@
-use std::collections::BTreeMap;
 use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow, bail};
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use serde_json::Value;
 
-use super::assertions::{assert_header_value, assert_json_value};
+use super::actors::ActorSession;
+use super::assertions::{
+	JsonAssertionContext, assert_header_value, assert_json_value_with_context,
+};
 use super::types::{ApiRequestCase, AssertionReport};
 
 #[derive(Debug, Clone)]
@@ -17,7 +19,7 @@ pub struct ApiResult {
 pub async fn execute_api_case(
 	base_url: &str,
 	case: &ApiRequestCase,
-	actor_headers: &BTreeMap<String, String>,
+	actor: &ActorSession,
 	default_timeout_ms: u64,
 ) -> Result<ApiResult> {
 	let client = reqwest::Client::builder()
@@ -42,7 +44,7 @@ pub async fn execute_api_case(
 		.with_context(|| format!("invalid HTTP method '{}'", case.method))?;
 
 	let mut headers = HeaderMap::new();
-	for (k, v) in actor_headers {
+	for (k, v) in &actor.headers {
 		insert_header(&mut headers, k, v)?;
 	}
 	for (k, v) in &case.headers {
@@ -84,8 +86,13 @@ pub async fn execute_api_case(
 		let parsed = body.as_ref().ok_or_else(|| {
 			anyhow!("body assertions requested but response body is not valid JSON")
 		})?;
+		let ctx = JsonAssertionContext {
+			actor_auth: actor.auth.clone(),
+		};
 		for (idx, assertion) in case.body_assertions.iter().enumerate() {
-			assertions.push(assert_json_value(parsed, assertion, idx)?);
+			assertions.push(assert_json_value_with_context(
+				parsed, assertion, idx, &ctx,
+			)?);
 		}
 	}
 

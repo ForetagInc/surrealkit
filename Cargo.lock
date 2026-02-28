@@ -3780,9 +3780,9 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "surrealdb"
-version = "3.0.0-rc.1"
+version = "3.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1201e1b7dd35ee4c071cbada066bf6292027eb09f995e5a20943be171a242e6e"
+checksum = "a18997a4c20c9559461846bff0dad185854c32639407904e2bb97567b4fa6a63"
 dependencies = [
  "anyhow",
  "async-channel",
@@ -3817,9 +3817,9 @@ dependencies = [
 
 [[package]]
 name = "surrealdb-core"
-version = "3.0.0-rc.1"
+version = "3.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4443f641428d70ec30cf56a2cb5f88173a7e2084c8e33b31f33b1ab7b23080bd"
+checksum = "470a61158ca8b4e774f8be3a8fbe1393bd33c026d9025a3db8f5ada0a06adf6a"
 dependencies = [
  "addr",
  "ahash 0.8.12",
@@ -3892,7 +3892,6 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tracing",
- "trice",
  "ulid",
  "unicase",
  "url",
@@ -3900,6 +3899,7 @@ dependencies = [
  "vart",
  "wasm-bindgen-futures",
  "wasmtimer",
+ "web-time",
 ]
 
 [[package]]
@@ -3928,9 +3928,9 @@ dependencies = [
 
 [[package]]
 name = "surrealdb-types"
-version = "3.0.0-rc.1"
+version = "3.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3365865a2c4b011d46852518e0b9ec35185c4e2f649fffd66d985ea39955c02e"
+checksum = "58db59440236ec593dbbb2487c4db11e4452ee636f9a1da3e3672c1cc1f42259"
 dependencies = [
  "anyhow",
  "bytes",
@@ -3954,9 +3954,9 @@ dependencies = [
 
 [[package]]
 name = "surrealdb-types-derive"
-version = "3.0.0-rc.1"
+version = "3.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "06c9be7156bc033e6355d92918bf5f77b704f42b08270e4e4f40062135a0a7fa"
+checksum = "617a808c9b3a2cd688c98027f4781c522507df73b42b1c56820ae72407eda016"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3965,7 +3965,7 @@ dependencies = [
 
 [[package]]
 name = "surrealkit"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "anyhow",
  "clap",

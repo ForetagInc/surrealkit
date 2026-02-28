@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::Instant;
 use std::sync::Arc;
+use std::time::Instant;
 
 use anyhow::{Context, Result, anyhow, bail};
 use serde_json::Value;
@@ -21,7 +21,7 @@ use super::actors::{
 	ActorSession, actor_name_or_default, build_actor_sessions, merged_actor_specs, require_actor,
 };
 use super::api::execute_api_case;
-use super::assertions::assert_json_value;
+use super::assertions::{JsonAssertionContext, assert_json_value_with_context};
 use super::types::{
 	AssertionReport, CaseKind, CaseReport, FilterInput, GlobalTestConfig, JsonAssertionSpec,
 	LoadedSuite, PermissionAction, RunReport, SuiteReport, TestOpts,
@@ -319,6 +319,7 @@ async fn run_case(
 				spec.error_contains.as_deref(),
 				spec.error_code.as_deref(),
 				&spec.assertions,
+				actor,
 			)
 		}
 		CaseKind::PermissionsMatrix(spec) => {
@@ -414,7 +415,12 @@ async fn run_case(
 				});
 			}
 			for (idx, assertion) in spec.assertions.iter().enumerate() {
-				assertions.push(assert_json_value(&value, assertion, idx)?);
+				assertions.push(assert_json_value_with_context(
+					&value,
+					assertion,
+					idx,
+					&actor_assertion_context(actor),
+				)?);
 			}
 			let passed = assertions.iter().all(|x| x.passed);
 			Ok(CaseReport {
@@ -448,6 +454,7 @@ async fn run_case(
 				spec.expect_error_contains.as_deref(),
 				None,
 				&Vec::new(),
+				actor,
 			)?;
 
 			if report.passed && !spec.assertions.is_empty() {
@@ -457,9 +464,12 @@ async fn run_case(
 					.unwrap_or_else(|| spec.action_sql.clone());
 				let value = execute_sql_value(&actor.db, &verify_sql).await?;
 				for (idx, assertion) in spec.assertions.iter().enumerate() {
-					report
-						.assertions
-						.push(assert_json_value(&value, assertion, idx)?);
+					report.assertions.push(assert_json_value_with_context(
+						&value,
+						assertion,
+						idx,
+						&actor_assertion_context(actor),
+					)?);
 				}
 				report.passed = report.assertions.iter().all(|x| x.passed);
 				if !report.passed {
@@ -478,7 +488,7 @@ async fn run_case(
 					case.name
 				)
 			})?;
-			let api_result = execute_api_case(base_url, spec, &actor.headers, timeout_ms).await?;
+			let api_result = execute_api_case(base_url, spec, actor, timeout_ms).await?;
 			let passed = api_result.assertions.iter().all(|x| x.passed);
 			Ok(CaseReport {
 				name: case.name.clone(),
@@ -507,6 +517,7 @@ fn report_sql_expect(
 	error_contains: Option<&str>,
 	error_code: Option<&str>,
 	json_assertions: &[JsonAssertionSpec],
+	actor: &ActorSession,
 ) -> Result<CaseReport> {
 	let mut assertions = Vec::new();
 	let mut message = None;
@@ -519,8 +530,11 @@ fn report_sql_expect(
 				passed: true,
 				message: "query succeeded as expected".to_string(),
 			});
+			let ctx = actor_assertion_context(actor);
 			for (idx, assertion) in json_assertions.iter().enumerate() {
-				assertions.push(assert_json_value(&value, assertion, idx)?);
+				assertions.push(assert_json_value_with_context(
+					&value, assertion, idx, &ctx,
+				)?);
 			}
 			passed = assertions.iter().all(|x| x.passed);
 			if !passed {
@@ -578,6 +592,12 @@ fn report_sql_expect(
 		message,
 		assertions,
 	})
+}
+
+fn actor_assertion_context(actor: &ActorSession) -> JsonAssertionContext {
+	JsonAssertionContext {
+		actor_auth: actor.auth.clone(),
+	}
 }
 
 fn evaluate_outcome(

@@ -2,8 +2,10 @@ use std::collections::{BTreeMap, HashMap};
 use std::env;
 
 use anyhow::{Context, Result, anyhow, bail};
+use serde_json::Value;
 use surrealdb::opt::auth::{Database, Namespace, Record, Root};
 use surrealdb::{Surreal, engine::any::Any};
+use surrealdb_types::SurrealValue;
 
 use crate::config::DbCfg;
 use crate::core::create_surreal_client;
@@ -14,6 +16,7 @@ use super::types::{ActorKind, ActorSpec};
 pub struct ActorSession {
 	pub db: Surreal<Any>,
 	pub headers: BTreeMap<String, String>,
+	pub auth: Option<Value>,
 }
 
 pub fn merged_actor_specs(
@@ -69,6 +72,7 @@ async fn build_default_root_session(
 		.with_context(|| format!("switching root actor to ns={namespace} db={database}"))?;
 
 	Ok(ActorSession {
+		auth: fetch_auth(&db).await?,
 		db,
 		headers: BTreeMap::new(),
 	})
@@ -227,9 +231,17 @@ async fn build_session(
 	}
 
 	Ok(ActorSession {
+		auth: fetch_auth(&db).await?,
 		db,
 		headers: session_headers,
 	})
+}
+
+async fn fetch_auth(db: &Surreal<Any>) -> Result<Option<Value>> {
+	let mut response = db.query("RETURN $auth;").await?.check()?;
+	let raw: surrealdb_types::Value = response.take(0)?;
+	let json = Value::from_value(raw).unwrap_or(Value::Null);
+	Ok((json != Value::Null).then_some(json))
 }
 
 pub fn actor_name_or_default(name: Option<&str>) -> &str {
