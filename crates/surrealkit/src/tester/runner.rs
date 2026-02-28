@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::time::Instant;
+use std::sync::Arc;
 
 use anyhow::{Context, Result, anyhow, bail};
 use serde_json::Value;
@@ -260,7 +260,12 @@ impl RunnerContext {
 		{
 			apply_fixture(fixture, &bootstrap_actors, Path::new("database/tests")).await?;
 		}
-		for fixture in suite.spec.fixtures.iter().filter(|f| fixture_targets_root(f)) {
+		for fixture in suite
+			.spec
+			.fixtures
+			.iter()
+			.filter(|f| fixture_targets_root(f))
+		{
 			let suite_base = suite
 				.path
 				.parent()
