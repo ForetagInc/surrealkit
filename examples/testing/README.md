@@ -16,14 +16,14 @@ This folder provides a full example for SurrealKit's `surrealkit test` runner th
 - `fixtures/root_and_access_setup.surql`: schema/access/function/api setup
 - `suites/root_access_full_stack.toml`: end-to-end suite
 
-## Use In This Repo
+## Reports
 
 Copy these into your active test directories:
 
 ```sh
-cp /Users/chiru/Projects/OSS/surrealkit/examples/testing/config.toml /Users/chiru/Projects/OSS/surrealkit/database/tests/config.toml
-cp /Users/chiru/Projects/OSS/surrealkit/examples/testing/suites/root_access_full_stack.toml /Users/chiru/Projects/OSS/surrealkit/database/tests/suites/root_access_full_stack.toml
-cp /Users/chiru/Projects/OSS/surrealkit/examples/testing/fixtures/root_and_access_setup.surql /Users/chiru/Projects/OSS/surrealkit/database/tests/fixtures/root_and_access_setup.surql
+cp /examples/testing/config.toml /database/tests/config.toml
+cp /examples/testing/suites/root_access_full_stack.toml /database/tests/suites/root_access_full_stack.toml
+cp /examples/testing/fixtures/root_and_access_setup.surql /database/tests/fixtures/root_and_access_setup.surql
 ```
 
 Then run:
