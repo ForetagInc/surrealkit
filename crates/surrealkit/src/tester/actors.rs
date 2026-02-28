@@ -164,7 +164,21 @@ async fn build_session(
 				spec.access_env.as_deref(),
 				format!("actor '{name}' access method"),
 			)?;
-			let params = spec.params.clone().unwrap_or_else(|| serde_json::json!({}));
+			if let Some(params) = spec.signup_params.clone() {
+				db.signup(Record {
+					namespace: actor_ns.clone(),
+					database: actor_db.clone(),
+					access: access.clone(),
+					params,
+				})
+				.await
+				.with_context(|| format!("actor '{name}' record signup failed"))?;
+			}
+			let params = spec
+				.signin_params
+				.clone()
+				.or_else(|| spec.params.clone())
+				.unwrap_or_else(|| serde_json::json!({}));
 			let token = db
 				.signin(Record {
 					namespace: actor_ns.clone(),

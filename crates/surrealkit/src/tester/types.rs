@@ -74,6 +74,8 @@ pub struct ActorSpec {
 	pub database_env: Option<String>,
 	pub access: Option<String>,
 	pub access_env: Option<String>,
+	pub signup_params: Option<serde_json::Value>,
+	pub signin_params: Option<serde_json::Value>,
 	pub params: Option<serde_json::Value>,
 	pub token: Option<String>,
 	pub token_env: Option<String>,

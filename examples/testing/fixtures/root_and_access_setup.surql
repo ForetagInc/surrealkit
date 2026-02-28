@@ -32,11 +32,6 @@ DEFINE ACCESS app_access ON DATABASE TYPE RECORD
 			AND crypto::argon2::compare(pass, $password)
 	);
 
-CREATE app_user:viewer CONTENT {
-	email: "viewer@example.com",
-	pass: crypto::argon2::generate("viewer-password")
-};
-
 DEFINE TABLE OVERWRITE person SCHEMAFULL PERMISSIONS FULL;
 DEFINE FIELD OVERWRITE name ON person TYPE string;
 

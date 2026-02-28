@@ -183,6 +183,12 @@ database = "main"
 username_env = "TEST_DB_READER_USER"
 password_env = "TEST_DB_READER_PASS"
 
+[actors.access_user]
+kind = "record"
+access = "app_access"
+signup_params = { email = "viewer@example.com", password = "viewer-password" }
+signin_params = { email = "viewer@example.com", password = "viewer-password" }
+
 [actors.jwt_actor]
 kind = "token"
 token_env = "TEST_API_JWT"
@@ -191,6 +197,8 @@ token_env = "TEST_API_JWT"
 kind = "headers"
 headers = { "x-tenant-id" = "tenant_a" }
 ```
+
+For record access actors, `signup_params` is optional and runs before authentication. `signin_params` is used for the actual signin step, and legacy `params` still works as a signin alias for backward compatibility.
 
 ### Permission Matrix Example
 

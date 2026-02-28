@@ -14,4 +14,5 @@ kind = "root"
 [actors.access_user]
 kind = "record"
 access = "app_access"
-params = { email = "viewer@example.com", password = "viewer-password" }
+signup_params = { email = "viewer@example.com", password = "viewer-password" }
+signin_params = { email = "viewer@example.com", password = "viewer-password" }

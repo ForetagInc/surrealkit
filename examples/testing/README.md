@@ -7,6 +7,7 @@ This folder provides a full example for SurrealKit's `surrealkit test` runner th
 - Function assertions
 - Graph/edge assertions (`RELATE` with relation table)
 - Root user vs record access-user permissions
+- Record access account provisioning through `SIGNUP`, followed by authentication through `SIGNIN`
 - API endpoint examples for both root and access user
 
 ## Files
@@ -34,5 +35,6 @@ surrealkit test --suite '*root_access_full_stack*' --json-out database/tests/rep
 ## Notes
 
 - The suite uses a `record` access actor (`kind = "record"`) with `access = "app_access"`.
+- `access_user` is created by the runner with `signup_params`, then authenticated with `signin_params`, so the test setup exercises the access method instead of relying on a pre-created fixture account.
 - API paths (`/api/v1/health`, `/api/v1/profile`) are placeholders. Update them to match your API routes.
 - The runner uses ephemeral namespace/database isolation by default.
