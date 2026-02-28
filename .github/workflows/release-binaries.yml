@@ -49,8 +49,10 @@ jobs:
         run: |
           set -euo pipefail
           TAG="${GITHUB_REF_NAME:-dev}"
+          BIN="target/${{ matrix.target }}/release/${BINARY_NAME}"
+          test -f "$BIN" || (echo "Missing binary: $BIN" && ls -la "target/${{ matrix.target }}/release" && exit 1)
           ARCHIVE="${BINARY_NAME}-${TAG}-${{ matrix.target }}.tar.gz"
-          tar -C "crates/surrealkit/target/${{ matrix.target }}/release" -czf "${ARCHIVE}" "${BINARY_NAME}"
+          tar -C "target/${{ matrix.target }}/release" -czf "${ARCHIVE}" "${BINARY_NAME}"
           echo "archive=${ARCHIVE}" >> "${GITHUB_OUTPUT}"
 
       - name: Package archive (windows)
@@ -60,7 +62,7 @@ jobs:
         run: |
           $tag = if ("${{ github.ref_name }}") { "${{ github.ref_name }}" } else { "dev" }
           $archive = "${env:BINARY_NAME}-$tag-${{ matrix.target }}.zip"
-          Compress-Archive -Path "crates/surrealkit/target/${{ matrix.target }}/release/${env:BINARY_NAME}.exe" -DestinationPath $archive
+          Compress-Archive -Path "target/${{ matrix.target }}/release/${env:BINARY_NAME}.exe" -DestinationPath $archive
           Add-Content -Path $env:GITHUB_OUTPUT -Value "archive=$archive"
 
       - name: Upload artifact (unix)
