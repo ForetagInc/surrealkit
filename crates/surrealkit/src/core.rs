@@ -1,3 +1,4 @@
+use sha2::{Digest, Sha256};
 use std::path::Path;
 use surrealdb::{
 	Surreal,
@@ -19,4 +20,10 @@ pub async fn exec_surql(db: &Surreal<Any>, sql: &str) -> anyhow::Result<()> {
 
 pub fn display(p: &Path) -> String {
 	p.to_string_lossy().into_owned()
+}
+
+pub fn sha256_hex(bytes: &[u8]) -> String {
+	let mut hasher = Sha256::new();
+	hasher.update(bytes);
+	hex::encode(hasher.finalize())
 }

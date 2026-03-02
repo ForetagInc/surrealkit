@@ -4,23 +4,20 @@ use clap::{Parser, Subcommand};
 use rust_dotenv::dotenv::DotEnv;
 use surrealdb::{Surreal, engine::any::Any};
 
-mod commit;
 mod config;
 mod core;
-mod migration;
+mod rollout;
 mod scaffold;
 mod schema_state;
 mod seed;
 mod setup;
-mod status;
 mod sync;
 mod tester;
 
-use commit::CommitOpts;
 use config::{DbCfg, connect};
-use migration::{apply_one, migrate_all};
+use core::exec_surql;
+use rollout::{RolloutExecutionOpts, RolloutPlanOpts};
 use setup::run_setup;
-use status::status;
 use sync::SyncOpts;
 use tester::{TestOpts, run_test};
 
@@ -39,13 +36,6 @@ pub struct Cli {
 enum Commands {
 	Init,
 	Setup,
-	Migrate {
-		#[arg(long, default_value_t = true)]
-		fail_fast: bool,
-
-		#[arg(long)]
-		dry_run: bool,
-	},
 	Sync {
 		#[arg(long)]
 		watch: bool,
@@ -60,20 +50,14 @@ enum Commands {
 		#[arg(long)]
 		allow_shared_prune: bool,
 	},
-	Commit {
-		#[arg(long)]
-		name: Option<String>,
-		#[arg(long)]
-		dry_run: bool,
-		#[arg(long)]
-		allow_empty: bool,
+	Rollout {
+		#[command(subcommand)]
+		command: RolloutCommands,
 	},
 	Seed,
 	Status,
 	Apply {
 		path: PathBuf,
-		#[arg(long)]
-		track: bool,
 	},
 	Test {
 		#[arg(long)]
@@ -103,6 +87,32 @@ enum Commands {
 	},
 }
 
+#[derive(Subcommand, Debug)]
+enum RolloutCommands {
+	Baseline,
+	Plan {
+		#[arg(long)]
+		name: Option<String>,
+		#[arg(long)]
+		dry_run: bool,
+	},
+	Start {
+		target: String,
+	},
+	Complete {
+		target: String,
+	},
+	Rollback {
+		target: String,
+	},
+	Status {
+		target: Option<String>,
+	},
+	Lint {
+		target: String,
+	},
+}
+
 fn load_env() -> DotEnv {
 	// Load .env in CWD if present, ignore missing
 	let env = DotEnv::new("");
@@ -119,10 +129,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 		Commands::Setup => {
 			let db = connect_from_env(&env).await?;
 			run_setup(&db).await?;
-		}
-		Commands::Migrate { fail_fast, dry_run } => {
-			let db = connect_from_env(&env).await?;
-			migrate_all(&db, fail_fast, dry_run).await?;
 		}
 		Commands::Sync {
 			watch,
@@ -146,29 +152,67 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 			)
 			.await?;
 		}
-		Commands::Commit {
-			name,
-			dry_run,
-			allow_empty,
-		} => {
-			commit::run_commit(CommitOpts {
-				name,
-				dry_run,
-				allow_empty,
-			})
-			.await?;
-		}
+		Commands::Rollout { command } => match command {
+			RolloutCommands::Baseline => {
+				let db = connect_from_env(&env).await?;
+				rollout::run_baseline(&db).await?;
+			}
+			RolloutCommands::Plan { name, dry_run } => {
+				rollout::run_plan(RolloutPlanOpts { name, dry_run }).await?;
+			}
+			RolloutCommands::Start { target } => {
+				let db = connect_from_env(&env).await?;
+				rollout::run_start(
+					&db,
+					RolloutExecutionOpts {
+						selector: Some(target),
+					},
+				)
+				.await?;
+			}
+			RolloutCommands::Complete { target } => {
+				let db = connect_from_env(&env).await?;
+				rollout::run_complete(
+					&db,
+					RolloutExecutionOpts {
+						selector: Some(target),
+					},
+				)
+				.await?;
+			}
+			RolloutCommands::Rollback { target } => {
+				let db = connect_from_env(&env).await?;
+				rollout::run_rollback(
+					&db,
+					RolloutExecutionOpts {
+						selector: Some(target),
+					},
+				)
+				.await?;
+			}
+			RolloutCommands::Status { target } => {
+				let db = connect_from_env(&env).await?;
+				rollout::run_status(&db, target).await?;
+			}
+			RolloutCommands::Lint { target } => {
+				rollout::run_lint(RolloutExecutionOpts {
+					selector: Some(target),
+				})
+				.await?;
+			}
+		},
 		Commands::Seed => {
 			let db = connect_from_env(&env).await?;
 			seed::seed(&db).await?;
 		}
 		Commands::Status => {
 			let db = connect_from_env(&env).await?;
-			status(&db).await?;
+			rollout::run_status(&db, None).await?;
 		}
-		Commands::Apply { path, track } => {
+		Commands::Apply { path } => {
 			let db = connect_from_env(&env).await?;
-			apply_one(&db, &path, track).await?;
+			let sql = std::fs::read_to_string(&path)?;
+			exec_surql(&db, &sql).await?;
 		}
 		Commands::Test {
 			suite,

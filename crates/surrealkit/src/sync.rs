@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::env;
 use std::time::Duration;
 
@@ -7,9 +7,13 @@ use surrealdb::{Surreal, engine::any::Any};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
 use crate::core::exec_surql;
+use crate::rollout::{
+	acquire_lock, delete_managed_entities, delete_sync_hashes, load_active_rollout_id,
+	load_managed_entities, release_lock, upsert_managed_entities,
+};
 use crate::schema_state::{
-	build_catalog_snapshot, collect_schema_files, ensure_local_state_dirs, load_catalog_snapshot,
-	removed_entities, render_remove_sql,
+	CatalogEntity, EntityKey, build_catalog_snapshot, collect_schema_files,
+	ensure_local_state_dirs, render_remove_sql,
 };
 use crate::setup::run_setup;
 
@@ -57,15 +61,25 @@ pub async fn run_sync(db: &Surreal<Any>, opts: SyncOpts) -> Result<()> {
 
 async fn run_sync_once(db: &Surreal<Any>, opts: &SyncOpts, watch_mode: bool) -> Result<()> {
 	let files = collect_schema_files()?;
+	let desired_catalog = build_catalog_snapshot(&files)?;
 	let tracked = load_sync_hashes(db).await?;
+	let managed = load_managed_entities(db).await?;
 
 	if files.is_empty() && !watch_mode {
 		println!("No schema files found in database/schema");
 	}
 
+	let file_paths: BTreeSet<String> = files.iter().map(|file| file.path.clone()).collect();
+	let removed_paths: Vec<String> = tracked
+		.keys()
+		.filter(|path| !file_paths.contains(*path))
+		.cloned()
+		.collect();
+
 	let mut changed_count = 0usize;
 	let mut apply_errors = 0usize;
-	let mut pruned_count = 0usize;
+	let mut synced_paths = BTreeSet::new();
+	let mut failed_paths = BTreeSet::new();
 	for file in &files {
 		let tracked_hash = tracked.get(&file.path);
 		if tracked_hash == Some(&file.hash) {
@@ -77,6 +91,7 @@ async fn run_sync_once(db: &Surreal<Any>, opts: &SyncOpts, watch_mode: bool) -> 
 			if !watch_mode {
 				println!("DRY RUN: would apply {}", file.path);
 			}
+			synced_paths.insert(file.path.clone());
 			continue;
 		}
 
@@ -86,9 +101,11 @@ async fn run_sync_once(db: &Surreal<Any>, opts: &SyncOpts, watch_mode: bool) -> 
 					println!("applied {}", file.path);
 				}
 				store_sync_hash(db, &file.path, &file.hash).await?;
+				synced_paths.insert(file.path.clone());
 			}
 			Err(err) => {
 				apply_errors += 1;
+				failed_paths.insert(file.path.clone());
 				eprintln!("error applying {}: {err:#}", file.path);
 				if opts.fail_fast {
 					return Err(err);
@@ -97,32 +114,77 @@ async fn run_sync_once(db: &Surreal<Any>, opts: &SyncOpts, watch_mode: bool) -> 
 		}
 	}
 
-	let old_catalog = load_catalog_snapshot()?;
-	let new_catalog = build_catalog_snapshot(&files);
-	let stale_entities = removed_entities(&old_catalog, &new_catalog);
-	let stale_count = stale_entities.len();
+	let effective_entities: Vec<CatalogEntity> = desired_catalog
+		.entities
+		.iter()
+		.filter(|entity| !failed_paths.contains(&entity.source_path))
+		.cloned()
+		.collect();
+	let effective_keys: BTreeSet<EntityKey> =
+		effective_entities.iter().map(CatalogEntity::key).collect();
 
-	if opts.prune && !stale_entities.is_empty() {
-		let shared = detect_shared_db(db).await?;
+	let stale_records: Vec<_> = managed
+		.iter()
+		.filter(|record| {
+			!effective_keys.contains(&record.entity.key())
+				&& !failed_paths.contains(&record.entity.source_path)
+		})
+		.cloned()
+		.collect();
+	let stale_entities: Vec<EntityKey> = stale_records
+		.iter()
+		.map(|record| record.entity.key())
+		.collect();
+	let stale_count = stale_entities.len();
+	let destructive_change = stale_count > 0;
+
+	let shared = if destructive_change {
+		detect_shared_db(db).await?
+	} else {
+		false
+	};
+	if destructive_change {
+		if load_active_rollout_id(db).await?.is_some() {
+			bail!("refusing destructive sync while a rollout is active");
+		}
 		if shared && !opts.allow_shared_prune {
 			bail!("database is marked shared; refusing stale prune without --allow-shared-prune");
 		}
+	}
 
+	if !opts.dry_run {
+		upsert_managed_entities(db, &effective_entities, None, "active").await?;
+		if !removed_paths.is_empty() {
+			delete_sync_hashes(db, &removed_paths).await?;
+		}
+	}
+
+	let mut pruned_count = 0usize;
+	if opts.prune && stale_count > 0 {
 		let remove_sql = render_remove_sql(&stale_entities, true)?;
-		let sql = remove_sql.join("\n");
 		if opts.dry_run {
 			if !watch_mode {
-				println!("DRY RUN: would prune {} stale entities", remove_sql.len());
-				for stmt in remove_sql {
+				println!(
+					"DRY RUN: would prune {} stale managed entities",
+					remove_sql.len()
+				);
+				for stmt in &remove_sql {
 					println!("  {}", stmt);
 				}
 			}
-		} else {
-			exec_surql(db, &sql).await?;
-			pruned_count = stale_count;
-			if !watch_mode {
-				println!("pruned {} stale entities", stale_count);
+		} else if shared {
+			acquire_lock(db, "global").await?;
+			let result = prune_managed_entities(db, &stale_entities).await;
+			let release = release_lock(db, "global").await;
+			match (result, release) {
+				(Err(err), _) => return Err(err),
+				(Ok(_), Err(err)) => return Err(err),
+				(Ok(()), Ok(())) => {}
 			}
+			pruned_count = stale_count;
+		} else {
+			prune_managed_entities(db, &stale_entities).await?;
+			pruned_count = stale_count;
 		}
 	}
 
@@ -132,21 +194,25 @@ async fn run_sync_once(db: &Surreal<Any>, opts: &SyncOpts, watch_mode: bool) -> 
 	}
 
 	if watch_mode {
-		let has_changes = changed_count > 0 || stale_count > 0;
+		let has_changes = changed_count > 0 || stale_count > 0 || !removed_paths.is_empty();
 		if has_changes {
 			if opts.dry_run {
 				println!(
-					"Change detected (dry-run): {} schema file(s), {} stale entity(ies) would be pushed.",
-					changed_count, stale_count
+					"Change detected (dry-run): {} schema file(s), {} stale entity(ies), {} stale tracking file(s) would be reconciled.",
+					changed_count,
+					stale_count,
+					removed_paths.len()
 				);
 			} else {
 				println!(
-					"Change detected and pushed: {} schema file(s) synced, {} stale entity(ies) pruned.",
-					changed_count, pruned_count
+					"Change detected and pushed: {} schema file(s) synced, {} stale entity(ies) pruned, {} stale tracking file(s) removed.",
+					changed_count,
+					pruned_count,
+					removed_paths.len()
 				);
 			}
 		}
-	} else if changed_count == 0 {
+	} else if changed_count == 0 && removed_paths.is_empty() && stale_count == 0 {
 		println!("schema already in sync");
 	}
 
@@ -155,12 +221,20 @@ async fn run_sync_once(db: &Surreal<Any>, opts: &SyncOpts, watch_mode: bool) -> 
 	}
 	if stale_count > 0 && !opts.prune {
 		println!(
-			"detected {} stale entities; rerun without --no-prune to remove",
+			"detected {} stale managed entities; rerun without --no-prune to remove",
 			stale_count
 		);
 	}
 
 	Ok(())
+}
+
+async fn prune_managed_entities(db: &Surreal<Any>, stale_entities: &[EntityKey]) -> Result<()> {
+	let sql = render_remove_sql(stale_entities, true)?.join("\n");
+	if !sql.trim().is_empty() {
+		exec_surql(db, &sql).await?;
+	}
+	delete_managed_entities(db, stale_entities).await
 }
 
 async fn load_sync_hashes(db: &Surreal<Any>) -> Result<BTreeMap<String, String>> {
@@ -240,10 +314,23 @@ async fn upsert_meta(db: &Surreal<Any>, key: &str, value: serde_json::Value) -> 
 	Ok(())
 }
 
-fn parse_bool(raw: &str) -> Option<bool> {
-	match raw.trim().to_ascii_lowercase().as_str() {
-		"1" | "true" | "yes" | "y" | "on" => Some(true),
-		"0" | "false" | "no" | "n" | "off" => Some(false),
+fn parse_bool(value: &str) -> Option<bool> {
+	match value.trim().to_ascii_lowercase().as_str() {
+		"1" | "true" | "yes" | "y" => Some(true),
+		"0" | "false" | "no" | "n" => Some(false),
 		_ => None,
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn parse_bool_handles_common_spellings() {
+		assert_eq!(parse_bool("true"), Some(true));
+		assert_eq!(parse_bool("Yes"), Some(true));
+		assert_eq!(parse_bool("0"), Some(false));
+		assert_eq!(parse_bool("unknown"), None);
 	}
 }
