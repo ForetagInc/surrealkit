@@ -2,7 +2,7 @@ name = 'smoke'
 tags = ['smoke']
 
 [[cases]]
-name = 'migration_table_visible'
+name = 'rollout_table_visible'
 kind = 'schema_metadata'
-sql = 'INFO FOR TABLE _migration;'
-contains = ['_migration']
+sql = 'INFO FOR TABLE _surrealkit_rollout;'
+contains = ['_surrealkit_rollout']

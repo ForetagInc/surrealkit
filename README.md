@@ -3,15 +3,15 @@
 [![Crates.io](https://img.shields.io/crates/v/surrealkit.svg)](https://crates.io/crates/surrealkit) [![Documentation](https://docs.rs/surrealkit/badge.svg)](https://docs.rs/surrealkit)
 [![License](https://img.shields.io/badge/license-Unlicense-blue.svg)](https://unlicense.org/)
 
-> NOT FOR PRODUCTION USE | For SurrealDB v3
+> EXPERIMENTAL | For SurrealDB v3
 
-Manage SurrealDB migrations, seeding, and testing with ease. Inspired by Eloquent ORM's migration pattern.
+Manage SurrealDB schema sync, phased rollouts, seeding, and testing for SurrealDB.
 
 ## Scope
 
-This project is designed to manage SurrealDB migrations, seed, testing, and database management. It is not intended for production use and is specifically tailored for SurrealDB version 3.
+This project manages SurrealDB schema sync, phased rollouts, seed data, testing, and database administration for SurrealDB v3. The rollout path is designed for shared and production-like databases, but should still be treated as experimental until it has broader field validation.
 
-If and when SurrealDB implements first-class tooling to manage migrations, seeding, and testing, SurrealKit will be deprecated in favour of the official SurrealDB tooling but intends to provide seamless transition.
+If and when SurrealDB implements first-class tooling to manage schema rollouts, seeding, and testing, SurrealKit will be deprecated in favour of the official SurrealDB tooling but intends to provide seamless transition.
 
 ## Usage
 
@@ -39,52 +39,89 @@ The following ENV variables will be picked up for your `.env` file, SurrealKit a
 - `DATABASE_USERNAME`
 - `DATABASE_PASSWORD`
 
-A table (`_migration`) is generated and managed by SurrealKit on your configured database.
+SurrealKit creates and manages its internal sync and rollout metadata tables on your configured database.
 
 ## Team Workflow
 
-SurrealKit now separates schema authoring, dev sync, and deploy migrations:
+SurrealKit now separates schema authoring, dev sync, and shared/prod rollouts:
+
+### Sync vs Rollouts
+
+- `surrealkit sync` is the fast desired-state reconciler for local, preview, and other disposable databases.
+- `surrealkit sync` applies changed schema files and automatically removes SurrealKit-managed objects that were deleted from `database/schema`.
+- `surrealkit rollout ...` is the production/shared-database migration path.
+- `surrealkit rollout plan` turns the desired-state diff into a reviewed manifest in `database/rollouts/*.toml`.
+- `surrealkit rollout start` applies the non-destructive expansion phase and records resumable state in the database.
+- `surrealkit rollout complete` performs the destructive contract phase, including removing legacy objects after application cutover.
+- Use `sync` when it is safe for the database to match local files immediately. Use `rollout` when changes need review, staged execution, rollback, or operator-controlled cutover.
 
 1. Edit desired state in `database/schema/*.surql`
-2. Reconcile dev DB with auto-prune:
+2. Reconcile local or disposable DBs with managed auto-prune:
 
 ```sh
 surrealkit sync
 ```
 
-3. Watch mode for local development:
+3. Watch mode for local development, including file deletions:
 
 ```sh
 surrealkit sync --watch
 ```
 
-4. Generate a git-reviewed migration diff and update snapshots:
+4. Baseline an existing shared/prod database before the first rollout:
 
 ```sh
-surrealkit commit --name add_customer_indexes
+surrealkit rollout baseline
 ```
 
-Generated migrations are written to `database/migrations/*.surql`.
-Snapshots are tracked in:
+5. Generate a rollout manifest from the current desired-state diff:
+
+```sh
+surrealkit rollout plan --name add_customer_indexes
+```
+
+6. Start the rollout, let application cutover happen, then complete it:
+
+```sh
+surrealkit rollout start 20260302153045__add_customer_indexes
+surrealkit rollout complete 20260302153045__add_customer_indexes
+```
+
+7. Roll back an in-flight rollout if needed:
+
+```sh
+surrealkit rollout rollback 20260302153045__add_customer_indexes
+```
+
+Generated rollout manifests are written to `database/rollouts/*.toml`.
+Local snapshots are tracked in:
 
 - `database/.surrealkit/schema_snapshot.json`
 - `database/.surrealkit/catalog_snapshot.json`
 
-To guard CI against missing migration/snapshot updates:
+To validate a rollout manifest without mutating the database:
 
 ```sh
-surrealkit commit --dry-run
+surrealkit rollout lint 20260302153045__add_customer_indexes
 ```
 
-If prune is enabled against a shared DB, SurrealKit requires explicit override:
+To inspect rollout state stored in the database:
+
+```sh
+surrealkit rollout status
+```
+
+If managed destructive prune is enabled against a shared DB, SurrealKit requires explicit override:
 
 ```sh
 surrealkit sync --allow-shared-prune
 ```
 
+`surrealkit sync` is the local/dev reconciliation path. `surrealkit rollout ...` is the shared/prod migration path.
+
 ### Seeding
 
-Seeding will automatically run when you apply migrations. If you would like to reapply migrations, please re-apply your migrations.
+Seeding runs on demand:
 
 ```sh
 surrealkit seed

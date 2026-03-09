@@ -6,10 +6,10 @@ use anyhow::{Context, Result, anyhow, bail};
 use serde::{Deserialize, Serialize};
 use walkdir::WalkDir;
 
-use crate::migration::sha256_hex;
+use crate::core::sha256_hex;
 
 pub const SCHEMA_DIR: &str = "database/schema";
-pub const MIGRATIONS_DIR: &str = "database/migrations";
+pub const ROLLOUTS_DIR: &str = "database/rollouts";
 pub const STATE_DIR: &str = "database/.surrealkit";
 pub const SCHEMA_SNAPSHOT_PATH: &str = "database/.surrealkit/schema_snapshot.json";
 pub const CATALOG_SNAPSHOT_PATH: &str = "database/.surrealkit/catalog_snapshot.json";
@@ -36,7 +36,7 @@ pub struct SchemaSnapshotEntry {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct CatalogSnapshot {
 	pub version: u32,
-	pub entities: Vec<EntityKey>,
+	pub entities: Vec<CatalogEntity>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
@@ -46,6 +46,16 @@ pub struct EntityKey {
 	pub name: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+pub struct CatalogEntity {
+	pub kind: String,
+	pub scope: Option<String>,
+	pub name: String,
+	pub source_path: String,
+	pub statement_hash: String,
+	pub file_hash: String,
+}
+
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct FileDiff {
 	pub added: Vec<String>,
@@ -53,9 +63,32 @@ pub struct FileDiff {
 	pub removed: Vec<String>,
 }
 
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct CatalogDiff {
+	pub added: Vec<CatalogEntity>,
+	pub removed: Vec<CatalogEntity>,
+	pub modified: Vec<CatalogChange>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CatalogChange {
+	pub old: CatalogEntity,
+	pub new: CatalogEntity,
+}
+
+impl CatalogEntity {
+	pub fn key(&self) -> EntityKey {
+		EntityKey {
+			kind: self.kind.clone(),
+			scope: self.scope.clone(),
+			name: self.name.clone(),
+		}
+	}
+}
+
 pub fn ensure_local_state_dirs() -> Result<()> {
 	fs::create_dir_all(SCHEMA_DIR).with_context(|| format!("creating {}", SCHEMA_DIR))?;
-	fs::create_dir_all(MIGRATIONS_DIR).with_context(|| format!("creating {}", MIGRATIONS_DIR))?;
+	fs::create_dir_all(ROLLOUTS_DIR).with_context(|| format!("creating {}", ROLLOUTS_DIR))?;
 	fs::create_dir_all(STATE_DIR).with_context(|| format!("creating {}", STATE_DIR))?;
 	Ok(())
 }
@@ -102,6 +135,11 @@ pub fn snapshot_from_files(files: &[SchemaFile]) -> SchemaSnapshot {
 	}
 }
 
+pub fn hash_schema_snapshot(snapshot: &SchemaSnapshot) -> Result<String> {
+	let canonical = serde_json::to_vec(snapshot).context("serializing schema snapshot")?;
+	Ok(sha256_hex(&canonical))
+}
+
 pub fn load_schema_snapshot() -> Result<SchemaSnapshot> {
 	load_json_or_default(
 		SCHEMA_SNAPSHOT_PATH,
@@ -120,7 +158,7 @@ pub fn load_catalog_snapshot() -> Result<CatalogSnapshot> {
 	load_json_or_default(
 		CATALOG_SNAPSHOT_PATH,
 		CatalogSnapshot {
-			version: 1,
+			version: 2,
 			entities: Vec::new(),
 		},
 	)
@@ -167,48 +205,119 @@ pub fn diff_schema(old: &SchemaSnapshot, new: &SchemaSnapshot) -> FileDiff {
 	}
 }
 
-pub fn build_catalog_snapshot(files: &[SchemaFile]) -> CatalogSnapshot {
+pub fn build_catalog_snapshot(files: &[SchemaFile]) -> Result<CatalogSnapshot> {
 	let mut entities = BTreeSet::new();
 	for file in files {
-		for stmt in split_statements(&strip_line_comments(&file.sql)) {
-			if let Some(entity) = parse_define_entity(&stmt) {
-				entities.insert(entity);
-			}
+		let statements = parse_schema_statements(file)?;
+		for entity in statements {
+			entities.insert(entity);
 		}
 	}
 
-	CatalogSnapshot {
-		version: 1,
+	Ok(CatalogSnapshot {
+		version: 2,
 		entities: entities.into_iter().collect(),
-	}
+	})
 }
 
-pub fn removed_entities(old: &CatalogSnapshot, new: &CatalogSnapshot) -> Vec<EntityKey> {
-	let old_set: BTreeSet<_> = old.entities.iter().cloned().collect();
-	let new_set: BTreeSet<_> = new.entities.iter().cloned().collect();
-	old_set.difference(&new_set).cloned().collect()
+pub fn parse_schema_statements(file: &SchemaFile) -> Result<Vec<CatalogEntity>> {
+	let mut entities = Vec::new();
+	for stmt in split_statements(&strip_line_comments(&file.sql)) {
+		let normalized = stmt.trim();
+		if normalized.is_empty() {
+			continue;
+		}
+		let upper = normalized.to_ascii_uppercase();
+		if upper.starts_with("REMOVE ") {
+			bail!(
+				"schema file '{}' contains a REMOVE statement; destructive SQL must live in rollout steps",
+				file.path
+			);
+		}
+		if !upper.starts_with("DEFINE ") {
+			bail!(
+				"schema file '{}' contains a non-DEFINE statement: '{}'",
+				file.path,
+				truncate_stmt(normalized)
+			);
+		}
+		let Some(mut entity) = parse_define_entity(normalized) else {
+			bail!(
+				"schema file '{}' contains an unsupported DEFINE statement: '{}'",
+				file.path,
+				truncate_stmt(normalized)
+			);
+		};
+		entity.source_path = file.path.clone();
+		entity.file_hash = file.hash.clone();
+		entity.statement_hash = sha256_hex(normalize_statement(normalized).as_bytes());
+		entities.push(entity);
+	}
+	Ok(entities)
+}
+
+pub fn catalog_snapshot_to_map(snapshot: &CatalogSnapshot) -> BTreeMap<EntityKey, CatalogEntity> {
+	snapshot
+		.entities
+		.iter()
+		.cloned()
+		.map(|entity| (entity.key(), entity))
+		.collect()
+}
+
+pub fn diff_catalog(old: &CatalogSnapshot, new: &CatalogSnapshot) -> CatalogDiff {
+	let old_map = catalog_snapshot_to_map(old);
+	let new_map = catalog_snapshot_to_map(new);
+	let mut diff = CatalogDiff::default();
+
+	for (key, new_entity) in &new_map {
+		match old_map.get(key) {
+			None => diff.added.push(new_entity.clone()),
+			Some(old_entity) if old_entity.statement_hash != new_entity.statement_hash => {
+				diff.modified.push(CatalogChange {
+					old: old_entity.clone(),
+					new: new_entity.clone(),
+				});
+			}
+			_ => {}
+		}
+	}
+
+	for (key, old_entity) in &old_map {
+		if !new_map.contains_key(key) {
+			diff.removed.push(old_entity.clone());
+		}
+	}
+
+	diff.added.sort();
+	diff.removed.sort();
+	diff.modified.sort_by(|a, b| a.old.cmp(&b.old));
+	diff
 }
 
 pub fn render_remove_sql(entities: &[EntityKey], api_supported: bool) -> Result<Vec<String>> {
+	let mut ordered = entities.to_vec();
+	ordered.sort_by_key(removal_sort_key);
+
 	let mut out = Vec::new();
-	for entity in entities {
+	for entity in ordered {
 		let stmt = match entity.kind.as_str() {
-			"table" => format!("REMOVE TABLE {};", entity.name),
 			"field" => format!(
 				"REMOVE FIELD {} ON {};",
 				entity.name,
-				scope_or_err(entity, "FIELD")?
+				scope_or_err(&entity, "FIELD")?
 			),
 			"event" => format!(
 				"REMOVE EVENT {} ON {};",
 				entity.name,
-				scope_or_err(entity, "EVENT")?
+				scope_or_err(&entity, "EVENT")?
 			),
 			"index" => format!(
 				"REMOVE INDEX {} ON {};",
 				entity.name,
-				scope_or_err(entity, "INDEX")?
+				scope_or_err(&entity, "INDEX")?
 			),
+			"table" => format!("REMOVE TABLE {};", entity.name),
 			"function" => format!("REMOVE FUNCTION {};", entity.name),
 			"param" => format!("REMOVE PARAM {};", entity.name),
 			"access" => match &entity.scope {
@@ -246,6 +355,28 @@ fn scope_or_err(entity: &EntityKey, object: &str) -> Result<String> {
 			entity.name
 		)
 	})
+}
+
+fn removal_sort_key(entity: &EntityKey) -> (usize, Option<String>, String, String) {
+	let weight = match entity.kind.as_str() {
+		"index" => 0,
+		"event" => 1,
+		"field" => 2,
+		"access" => 3,
+		"user" => 4,
+		"function" => 5,
+		"param" => 6,
+		"api" => 7,
+		"analyzer" => 8,
+		"table" => 9,
+		_ => 10,
+	};
+	(
+		weight,
+		entity.scope.clone(),
+		entity.kind.clone(),
+		entity.name.clone(),
+	)
 }
 
 fn normalize_path(path: &Path) -> Result<String> {
@@ -298,13 +429,16 @@ fn split_statements(sql: &str) -> Vec<String> {
 	let mut in_double = false;
 	let mut in_backtick = false;
 	let mut prev_escape = false;
+	let mut brace_depth = 0usize;
 
 	for ch in sql.chars() {
 		match ch {
 			'\'' if !in_double && !in_backtick && !prev_escape => in_single = !in_single,
 			'"' if !in_single && !in_backtick && !prev_escape => in_double = !in_double,
 			'`' if !in_single && !in_double && !prev_escape => in_backtick = !in_backtick,
-			';' if !in_single && !in_double && !in_backtick => {
+			'{' if !in_single && !in_double && !in_backtick => brace_depth += 1,
+			'}' if !in_single && !in_double && !in_backtick && brace_depth > 0 => brace_depth -= 1,
+			';' if !in_single && !in_double && !in_backtick && brace_depth == 0 => {
 				let stmt = buf.trim();
 				if !stmt.is_empty() {
 					out.push(stmt.to_string());
@@ -328,7 +462,7 @@ fn split_statements(sql: &str) -> Vec<String> {
 	out
 }
 
-fn parse_define_entity(stmt: &str) -> Option<EntityKey> {
+fn parse_define_entity(stmt: &str) -> Option<CatalogEntity> {
 	let tokens = tokenize(stmt);
 	if tokens.len() < 3 || !eq(tokens[0], "DEFINE") {
 		return None;
@@ -341,12 +475,8 @@ fn parse_define_entity(stmt: &str) -> Option<EntityKey> {
 		return None;
 	}
 
-	match kind.as_str() {
-		"table" => Some(EntityKey {
-			kind,
-			scope: None,
-			name: clean_ident(tokens[idx]),
-		}),
+	let (scope, name) = match kind.as_str() {
+		"table" => (None, clean_ident(tokens[idx])),
 		"field" | "event" | "index" => {
 			let name = clean_ident(tokens[idx]);
 			let on_idx = find_token(&tokens, idx + 1, "ON")?;
@@ -357,17 +487,9 @@ fn parse_define_entity(stmt: &str) -> Option<EntityKey> {
 			if scope_idx >= tokens.len() {
 				return None;
 			}
-			Some(EntityKey {
-				kind,
-				scope: Some(clean_ident(tokens[scope_idx])),
-				name,
-			})
+			(Some(clean_ident(tokens[scope_idx])), name)
 		}
-		"function" | "param" | "analyzer" | "api" => Some(EntityKey {
-			kind,
-			scope: None,
-			name: clean_ident(tokens[idx]),
-		}),
+		"function" | "param" | "analyzer" | "api" => (None, clean_ident(tokens[idx])),
 		"access" | "user" => {
 			let name = clean_ident(tokens[idx]);
 			let scope = find_token(&tokens, idx + 1, "ON").and_then(|on_idx| {
@@ -378,11 +500,19 @@ fn parse_define_entity(stmt: &str) -> Option<EntityKey> {
 					None
 				}
 			});
-
-			Some(EntityKey { kind, scope, name })
+			(scope, name)
 		}
-		_ => None,
-	}
+		_ => return None,
+	};
+
+	Some(CatalogEntity {
+		kind,
+		scope,
+		name,
+		source_path: String::new(),
+		statement_hash: String::new(),
+		file_hash: String::new(),
+	})
 }
 
 fn tokenize(stmt: &str) -> Vec<&str> {
@@ -418,6 +548,32 @@ fn find_token(tokens: &[&str], start: usize, target: &str) -> Option<usize> {
 
 fn eq(value: &str, expected: &str) -> bool {
 	value.eq_ignore_ascii_case(expected)
+}
+
+fn normalize_statement(stmt: &str) -> String {
+	let mut out = String::new();
+	let mut prev_space = false;
+	for ch in stmt.trim().chars() {
+		if ch.is_whitespace() {
+			if !prev_space {
+				out.push(' ');
+			}
+			prev_space = true;
+		} else {
+			out.push(ch);
+			prev_space = false;
+		}
+	}
+	out
+}
+
+fn truncate_stmt(stmt: &str) -> String {
+	const LIMIT: usize = 96;
+	if stmt.len() <= LIMIT {
+		stmt.to_string()
+	} else {
+		format!("{}...", &stmt[..LIMIT])
+	}
 }
 
 #[cfg(test)]
@@ -479,27 +635,37 @@ mod tests {
 			.to_string(),
 		}];
 
-		let catalog = build_catalog_snapshot(&files);
-		assert!(catalog.entities.contains(&EntityKey {
+		let catalog = build_catalog_snapshot(&files).expect("catalog build");
+		assert!(catalog.entities.contains(&CatalogEntity {
 			kind: "table".to_string(),
 			scope: None,
-			name: "person".to_string()
+			name: "person".to_string(),
+			source_path: "database/schema/root.surql".to_string(),
+			statement_hash: sha256_hex("DEFINE TABLE OVERWRITE person SCHEMAFULL".as_bytes()),
+			file_hash: "x".to_string(),
 		}));
-		assert!(catalog.entities.contains(&EntityKey {
-			kind: "field".to_string(),
-			scope: Some("person".to_string()),
-			name: "name".to_string()
+		assert!(catalog.entities.iter().any(|entity| {
+			entity.kind == "field"
+				&& entity.scope.as_deref() == Some("person")
+				&& entity.name == "name"
+				&& entity.source_path == "database/schema/root.surql"
 		}));
-		assert!(catalog.entities.contains(&EntityKey {
-			kind: "api".to_string(),
-			scope: None,
-			name: "v1".to_string()
-		}));
+		assert!(
+			catalog
+				.entities
+				.iter()
+				.any(|entity| entity.kind == "api" && entity.name == "v1")
+		);
 	}
 
 	#[test]
 	fn render_remove_sql_respects_api_support() {
 		let entities = vec![
+			EntityKey {
+				kind: "table".to_string(),
+				scope: None,
+				name: "person".to_string(),
+			},
 			EntityKey {
 				kind: "field".to_string(),
 				scope: Some("person".to_string()),
@@ -513,10 +679,58 @@ mod tests {
 		];
 
 		let supported = render_remove_sql(&entities, true).expect("api should be supported");
+		assert_eq!(supported[0], "REMOVE FIELD nickname ON person;");
 		assert!(supported.iter().any(|line| line == "REMOVE API v1;"));
+		assert_eq!(
+			supported.last().expect("table removal"),
+			"REMOVE TABLE person;"
+		);
 
 		let unsupported = render_remove_sql(&entities, false);
 		assert!(unsupported.is_err());
+	}
+
+	#[test]
+	fn schema_rejects_non_define_sql() {
+		let file = SchemaFile {
+			path: "database/schema/root.surql".to_string(),
+			hash: "x".to_string(),
+			sql: "CREATE person SET name = 'a';".to_string(),
+		};
+
+		let err = parse_schema_statements(&file).expect_err("must reject create");
+		assert!(err.to_string().contains("non-DEFINE"));
+	}
+
+	#[test]
+	fn catalog_diff_detects_statement_changes() {
+		let old = CatalogSnapshot {
+			version: 2,
+			entities: vec![CatalogEntity {
+				kind: "field".to_string(),
+				scope: Some("person".to_string()),
+				name: "nickname".to_string(),
+				source_path: "database/schema/a.surql".to_string(),
+				statement_hash: "a".to_string(),
+				file_hash: "file-a".to_string(),
+			}],
+		};
+		let new = CatalogSnapshot {
+			version: 2,
+			entities: vec![CatalogEntity {
+				kind: "field".to_string(),
+				scope: Some("person".to_string()),
+				name: "nickname".to_string(),
+				source_path: "database/schema/a.surql".to_string(),
+				statement_hash: "b".to_string(),
+				file_hash: "file-b".to_string(),
+			}],
+		};
+
+		let diff = diff_catalog(&old, &new);
+		assert_eq!(diff.modified.len(), 1);
+		assert_eq!(diff.modified[0].old.statement_hash, "a");
+		assert_eq!(diff.modified[0].new.statement_hash, "b");
 	}
 
 	#[test]
@@ -524,12 +738,12 @@ mod tests {
 		let files = vec![
 			SchemaFile {
 				path: "database/schema/z.surql".to_string(),
-				sql: "".to_string(),
+				sql: String::new(),
 				hash: "z".to_string(),
 			},
 			SchemaFile {
 				path: "database/schema/a.surql".to_string(),
-				sql: "".to_string(),
+				sql: String::new(),
 				hash: "a".to_string(),
 			},
 		];
