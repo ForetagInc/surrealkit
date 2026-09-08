@@ -670,6 +670,12 @@ path = "0.id"
 exists = true
 ```
 
+An assertion whose `path` (or `header_assertions` `name`) is not present in the result
+**fails** with `path '<path>' not found`. This catches typos and queries that matched
+zero rows, which would otherwise report a pass without ever running the comparison. To
+assert that a field is genuinely absent, state it explicitly with `exists = false` —
+that is the only spec that passes on a missing path.
+
 To compare a returned field against the authenticated actor, use `equals_auth` with `$auth` or `$auth.<property>`:
 
 ```toml

@@ -121,6 +121,39 @@ Targets are applied one at a time and there is no cross-database transaction, so
 a failing run can leave some targets applied and others not. Every operation is
 idempotent, so re-running after a fix is safe.
 
+## If you use the tester
+
+### Missing paths and headers now fail instead of passing
+
+Through 0.7, an assertion on a JSON path or response header that did **not exist**
+silently passed. The check compared "not found" against an unset `exists` field and
+matched, so the `equals` / `contains` / `regex` comparison was never reached:
+
+```toml
+[[cases.assertions]]
+path = "0.owner"     # typo, or a query that matched zero rows
+equals = "user:alice"
+```
+
+On 0.7 that reported a pass. On 1.0 it fails with `path '0.owner' not found`. The same
+applies to `header_assertions` against a header the response never sent.
+
+**If assertions go red on upgrade, they were most likely never being evaluated.** Check
+the actual shape of the result before assuming SurrealKit regressed — in this repository
+the change surfaced an example suite whose `RELATE` verify query had `in` and `out`
+swapped, matched zero rows, and had been green for the whole 0.7 line.
+
+To assert that something is genuinely absent, say so explicitly:
+
+```toml
+[[cases.assertions]]
+path = "0.secret"
+exists = false
+```
+
+`exists = false` is the only way to pass on a missing path or header; there is no
+suite-level opt-out, and unknown keys in an assertion are rejected at parse time.
+
 ## If you use the Rust library
 
 ### `Rollout` no longer writes to disk

@@ -146,7 +146,7 @@ pub fn assert_header_value(
 	if found.is_none() {
 		return Ok(AssertionReport {
 			name: label,
-			passed: exists == assertion.exists.unwrap_or(false),
+			passed: assertion.exists == Some(false),
 			message: format!("header '{}' not found", assertion.name),
 		});
 	}
@@ -381,5 +381,78 @@ mod tests {
 		let report =
 			assert_json_value_with_context(&actual, &assertion, 0, &ctx).expect("assertion ok");
 		assert!(report.passed, "{}", report.message);
+	}
+
+	fn header_map(pairs: &[(&str, &str)]) -> reqwest::header::HeaderMap {
+		use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
+
+		let mut headers = HeaderMap::new();
+		for (name, value) in pairs {
+			headers.insert(
+				HeaderName::from_bytes(name.as_bytes()).expect("valid header name"),
+				HeaderValue::from_str(value).expect("valid header value"),
+			);
+		}
+		headers
+	}
+
+	#[test]
+	fn missing_header_fails_by_default() {
+		let headers = header_map(&[("content-type", "application/json")]);
+		let assertion = HeaderAssertionSpec {
+			name: "x-missing".to_string(),
+			exists: None,
+			equals: Some("acme".to_string()),
+			contains: None,
+			regex: None,
+		};
+
+		let report =
+			assert_header_value(&headers, &assertion, 0).expect("assertion should evaluate");
+
+		assert!(!report.passed);
+		assert_eq!(report.message, "header 'x-missing' not found");
+	}
+
+	#[test]
+	fn missing_header_can_be_asserted_explicitly() {
+		let headers = header_map(&[("content-type", "application/json")]);
+		let assertion = HeaderAssertionSpec {
+			name: "x-missing".to_string(),
+			exists: Some(false),
+			equals: None,
+			contains: None,
+			regex: None,
+		};
+
+		let report =
+			assert_header_value(&headers, &assertion, 0).expect("assertion should evaluate");
+
+		assert!(report.passed, "{}", report.message);
+	}
+
+	#[test]
+	fn present_header_match_and_mismatch_are_unchanged() {
+		let headers = header_map(&[("content-type", "application/json")]);
+		let matching = HeaderAssertionSpec {
+			name: "content-type".to_string(),
+			exists: None,
+			equals: Some("application/json".to_string()),
+			contains: None,
+			regex: None,
+		};
+		let mismatching = HeaderAssertionSpec {
+			equals: Some("text/plain".to_string()),
+			..matching.clone()
+		};
+
+		let matched = assert_header_value(&headers, &matching, 0)
+			.expect("matching assertion should evaluate");
+		let mismatched = assert_header_value(&headers, &mismatching, 1)
+			.expect("mismatching assertion should evaluate");
+
+		assert!(matched.passed, "{}", matched.message);
+		assert!(!mismatched.passed);
+		assert!(mismatched.message.contains("expected 'text/plain' got 'application/json'"));
 	}
 }
